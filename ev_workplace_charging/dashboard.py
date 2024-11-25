@@ -1,6 +1,5 @@
 import datetime
 from collections import defaultdict
-from pathlib import Path
 
 import pandas as pd
 import pyomo.environ as pyo
@@ -8,25 +7,17 @@ import seaborn as sns
 import streamlit as st
 from matplotlib import pyplot as plt
 
-# Paths
-DATA_DIR = Path(__file__).parent.parent / "data"
-FIGURES_DIR = DATA_DIR / "figures"
-INPUT_DATA_DIR = DATA_DIR / "input_data"
-METRICS_DATA_DIR = DATA_DIR / "metrics"
-MODEL_OUTPUTS_DIR = DATA_DIR / "model_outputs"
+from ev_workplace_charging.settings import CHARGER_OUTPUT_POWER
+from ev_workplace_charging.settings import ELECTRICITY_COSTS_SHEET_NAME
+from ev_workplace_charging.settings import EV_PARAMETERS_SHEET_NAME
+from ev_workplace_charging.settings import EV_PARKING_MATRIX_SHEET_NAME
+from ev_workplace_charging.settings import FIGURES_DIR
+from ev_workplace_charging.settings import GRID_CARBON_INTENSITY_SHEET_NAME
+from ev_workplace_charging.settings import METRICS_DATA_DIR
+from ev_workplace_charging.settings import MODEL_OUTPUTS_DIR
+from ev_workplace_charging.settings import SOLVER_TYPE
+from ev_workplace_charging.settings import UNCONTROLLED_CHARGING_SHEET_NAME
 
-INPUT_DATA_FILE_PATH = INPUT_DATA_DIR / "EVWorkplaceCharging-Input-Data_V2.xlsx"
-
-# Input data sheet names
-EV_PARAMETERS_SHEET_NAME = "EV Parameters"
-EV_PARKING_MATRIX_SHEET_NAME = "EV Parking Matrix"
-POWER_DATA_PB_SHEET_NAME = "Power Data Pb_original"
-ELECTRICITY_COSTS_SHEET_NAME = "Electricity Costs"
-GRID_CARBON_INTENSITY_SHEET_NAME = "Grid Carbon Intensity"
-UNCONTROLLED_CHARGING_SHEET_NAME = "Uncontrolled Charging"
-
-CHARGER_OUTPUT_POWER = 11
-SOLVER_TYPE = "gurobi"
 
 N_CARS = {
     "15%": 142,
