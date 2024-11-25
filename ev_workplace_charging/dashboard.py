@@ -42,11 +42,6 @@ MODEL_TYPES = {
     "cem": "Carbon Emission Minimisation (CEM)",
 }
 
-CHARGING_TYPES = {
-    "sc": "Smart Charging",
-    "bdc": "Bidirectional Charging",
-}
-
 METRICS = [
     "Max. Peak",
     "Charging Costs",
@@ -55,7 +50,6 @@ METRICS = [
 
 COLUMN_NAMES = {
     "model_type": "Model Type",
-    "charging_type": "Charging Type",
     "ev_portion": "EV Portion",
     "max_peak": METRICS[0],
     "charging_costs": METRICS[1],
@@ -138,71 +132,60 @@ def dashboard():
     column_spec = [4, 3]
 
     # Run models
+    metrics = []
     for model_type, model_type_long in MODEL_TYPES.items():
         _, col2, _ = st.columns([1, 2, 1])
         col2.write(f"## {model_type_long}")
 
-        # Collect optimization outputs and metrics for each charging type
-        metrics = []
-        outputs = {}
-        for charging_type in ["sc"]:
-            vehicle_to_building = True if charging_type == "bdc" else False
+        # Run optimization if output file does not already exist, else load output
+        output_file_path = MODEL_OUTPUTS_DIR / f"{date}_{model_type}_{ev_portion}.csv"
+        if not output_file_path.exists():
+            if model_type == "ps":
+                model = setup_and_solve_ps_model(
+                    df_parking_matrix=df_parking_matrix,
+                    df_ev_parameters=df_ev_parameters,
+                    df_power_profile=df_power_profile,
+                    charger_output_power=charger_output_power,
+                    solver_type=solver_type,
+                )
+            elif model_type == "ccm":
+                model = setup_and_solve_ccm_model(
+                    df_parking_matrix=df_parking_matrix,
+                    df_ev_parameters=df_ev_parameters,
+                    df_power_profile=df_power_profile,
+                    df_charging_costs=df_charging_costs,
+                    charger_output_power=charger_output_power,
+                    solver_type=solver_type,
+                )
+            elif model_type == "cem":
+                model = setup_and_solve_cem_model(
+                    df_parking_matrix=df_parking_matrix,
+                    df_ev_parameters=df_ev_parameters,
+                    df_power_profile=df_power_profile,
+                    df_grid_carbon_intensity=df_grid_carbon_intensity,
+                    charger_output_power=charger_output_power,
+                    solver_type=solver_type,
+                )
 
-            # Run optimization if output file does not already exist, else load output
-            output_file_path = MODEL_OUTPUTS_DIR / f"{date}_{model_type}_{charging_type}_{ev_portion}.csv"
-            if not output_file_path.exists():
-                if model_type == "ps":
-                    model = setup_and_solve_ps_model(
-                        df_parking_matrix=df_parking_matrix,
-                        df_ev_parameters=df_ev_parameters,
-                        df_power_profile=df_power_profile,
-                        charger_output_power=charger_output_power,
-                        vehicle_to_building=vehicle_to_building,
-                        solver_type=solver_type,
-                    )
-                elif model_type == "ccm":
-                    model = setup_and_solve_ccm_model(
-                        df_parking_matrix=df_parking_matrix,
-                        df_ev_parameters=df_ev_parameters,
-                        df_power_profile=df_power_profile,
-                        df_charging_costs=df_charging_costs,
-                        charger_output_power=charger_output_power,
-                        vehicle_to_building=vehicle_to_building,
-                        solver_type=solver_type,
-                    )
-                elif model_type == "cem":
-                    model = setup_and_solve_cem_model(
-                        df_parking_matrix=df_parking_matrix,
-                        df_ev_parameters=df_ev_parameters,
-                        df_power_profile=df_power_profile,
-                        df_grid_carbon_intensity=df_grid_carbon_intensity,
-                        charger_output_power=charger_output_power,
-                        vehicle_to_building=vehicle_to_building,
-                        solver_type=solver_type,
-                    )
+            df_output = save_model_output(model, date, model_type, ev_portion)
+        else:
+            df_output = pd.read_csv(output_file_path)
 
-                df_output = save_model_output(model, date, model_type, charging_type, ev_portion)
-            else:
-                df_output = pd.read_csv(output_file_path)
+        # Compute metrics
+        mp = compute_max_peak(df_output["Tc"])
+        cc = compute_total_charging_costs(df_output["Tc"], df_power_profile, df_charging_costs)
+        ce = compute_total_carbon_emissions(df_output["Tc"], df_power_profile, df_grid_carbon_intensity)
 
-            outputs[charging_type] = df_output
-
-            # Compute metrics
-            mp = compute_max_peak(df_output["Tc"])
-            cc = compute_total_charging_costs(df_output["Tc"], df_power_profile, df_charging_costs)
-            ce = compute_total_carbon_emissions(df_output["Tc"], df_power_profile, df_grid_carbon_intensity)
-
-            metrics.append(
-                {
-                    "date": date,
-                    "model_type": model_type,
-                    "charging_type": charging_type,
-                    "ev_portion": ev_portion,
-                    "max_peak": compute_relative_change(mp, max_peak_ucc),
-                    "charging_costs": compute_relative_change(cc, charging_costs_ucc),
-                    "carbon_emissions": compute_relative_change(ce, carbon_emissions_ucc),
-                }
-            )
+        metrics.append(
+            {
+                "date": date,
+                "model_type": model_type,
+                "ev_portion": ev_portion,
+                "max_peak": compute_relative_change(mp, max_peak_ucc),
+                "charging_costs": compute_relative_change(cc, charging_costs_ucc),
+                "carbon_emissions": compute_relative_change(ce, carbon_emissions_ucc),
+            }
+        )
 
         # Plot optimization outputs and metrics
         with st.container():
@@ -212,33 +195,30 @@ def dashboard():
             with col1:
                 if model_type == "ps":
                     fig = create_output_fig(
-                        df_output_sc=outputs["sc"],
+                        df_output=df_output,
                         df_dumb_charging=df_dumb_charging,
-                        color_sc=sns.color_palette("tab10")[0],
-                        # df_output_bdc=outputs["bdc"],
+                        color=sns.color_palette("tab10")[0],
                         mean_power=mean_power,
                     )
                 elif model_type == "ccm":
                     fig = create_output_fig(
-                        df_output_sc=outputs["sc"],
+                        df_output=df_output,
                         df_dumb_charging=df_dumb_charging,
-                        color_sc=sns.color_palette("tab10")[1],
+                        color=sns.color_palette("tab10")[1],
                         df_electricity_costs=df_charging_costs,
                         mean_power=mean_power,
                     )
                 elif model_type == "cem":
                     fig = create_output_fig(
-                        df_output_sc=outputs["sc"],
+                        df_output=df_output,
                         df_dumb_charging=df_dumb_charging,
-                        color_sc=sns.color_palette("tab10")[2],
+                        color=sns.color_palette("tab10")[2],
                         df_grid_carbon_intensity=df_grid_carbon_intensity,
                         mean_power=mean_power,
                     )
 
                 plt.tight_layout(pad=2.0)
-                fig.savefig(
-                    FIGURES_DIR / f"power_profiles_{date}_{model_type}_{charging_type}_{ev_portion}.png", dpi=300
-                )
+                fig.savefig(FIGURES_DIR / f"power_profiles_{date}_{model_type}_{ev_portion}.png", dpi=300)
                 st.write(fig)
 
             # Plot metrics
@@ -246,7 +226,7 @@ def dashboard():
                 fig = create_metrics_fig(metrics)
                 # Add padding to left side of figure to prevent label cutoff
                 plt.tight_layout(pad=2.0)
-                fig.savefig(FIGURES_DIR / f"metrics_{date}_{model_type}_{charging_type}_{ev_portion}.png", dpi=300)
+                fig.savefig(FIGURES_DIR / f"metrics_{date}_{model_type}_{ev_portion}.png", dpi=300)
                 st.write(fig)
 
 
@@ -329,7 +309,6 @@ def setup_and_solve_ps_model(
     df_ev_parameters,
     df_power_profile,
     charger_output_power,
-    vehicle_to_building,
     solver_type,
 ):
     ps_model = setup_model(
@@ -340,7 +319,6 @@ def setup_and_solve_ps_model(
         df_charging_costs=None,
         df_grid_carbon_intensity=None,
         charger_output_power=charger_output_power,
-        vehicle_to_building=vehicle_to_building,
     )
 
     solve_model(solver_type, ps_model)
@@ -355,7 +333,6 @@ def setup_and_solve_ccm_model(
     df_power_profile,
     df_charging_costs,
     charger_output_power,
-    vehicle_to_building,
     solver_type,
 ):
     ccm_model = setup_model(
@@ -366,7 +343,6 @@ def setup_and_solve_ccm_model(
         df_charging_costs=df_charging_costs,
         df_grid_carbon_intensity=None,
         charger_output_power=charger_output_power,
-        vehicle_to_building=vehicle_to_building,
     )
 
     solve_model(solver_type, ccm_model)
@@ -381,7 +357,6 @@ def setup_and_solve_cem_model(
     df_power_profile,
     df_grid_carbon_intensity,
     charger_output_power,
-    vehicle_to_building,
     solver_type,
 ):
     cem_model = setup_model(
@@ -392,7 +367,6 @@ def setup_and_solve_cem_model(
         df_charging_costs=None,
         df_grid_carbon_intensity=df_grid_carbon_intensity,
         charger_output_power=charger_output_power,
-        vehicle_to_building=vehicle_to_building,
     )
 
     solve_model(solver_type, cem_model)
@@ -400,32 +374,30 @@ def setup_and_solve_cem_model(
     return cem_model
 
 
-@st.cache_data
 def create_output_fig(
-    df_output_sc,
+    df_output,
     df_dumb_charging,
     mean_power,
-    color_sc,
-    df_output_bdc=None,
+    color,
     df_electricity_costs=None,
     df_grid_carbon_intensity=None,
 ):
     fig, ax = plt.subplots(figsize=(10, 6))
 
     # Use n as index
-    df_output_sc.index = df_output_sc["n"]
-    df_dumb_charging.index = df_output_sc.index
+    df_output.index = df_output["n"]
+    df_dumb_charging.index = df_output.index
 
     # Divide by mean_power
-    df_output_sc["Pb"] = df_output_sc["Pb"] / mean_power
+    df_output["Pb"] = df_output["Pb"] / mean_power
     df_dumb_charging = df_dumb_charging / mean_power
-    df_output_sc["Tc"] = df_output_sc["Tc"] / mean_power
+    df_output["Tc"] = df_output["Tc"] / mean_power
 
-    const_C = (min(df_output_sc["Pb"]) + max(df_output_sc["Pb"])) / 2
+    const_C = (min(df_output["Pb"]) + max(df_output["Pb"])) / 2
 
     g = sns.lineplot(
-        data=df_output_sc,
-        x=df_output_sc.index,
+        data=df_output,
+        x=df_output.index,
         y="Pb",
         label="Power Curve Industrial Site",
         color="gray",
@@ -441,11 +413,11 @@ def create_output_fig(
         ax=ax,
     )
     sns.lineplot(
-        data=df_output_sc,
-        x=df_output_sc.index,
+        data=df_output,
+        x=df_output.index,
         y="Tc",
         label="Smart Charging (SC)",
-        color=color_sc,
+        color=color,
         linewidth=2.5,
         ax=ax,
     )
@@ -457,20 +429,8 @@ def create_output_fig(
         label="Constant C",
     )
 
-    if df_output_bdc is not None:
-        df_output_bdc["Tc"] = df_output_bdc["Tc"] / mean_power
-        df_output_bdc.index = df_output_sc.index
-        sns.lineplot(
-            data=df_output_bdc,
-            x=df_output_bdc.index,
-            y="Tc",
-            label="Bidirectional charging (BDC)",
-            color="goldenrod",
-            ax=ax,
-        )
-
     if df_electricity_costs is not None:
-        df_electricity_costs.index = df_output_sc.index
+        df_electricity_costs.index = df_output.index
 
         ax2 = ax.twinx()
         sns.lineplot(
@@ -488,7 +448,7 @@ def create_output_fig(
         sns.move_legend(ax2, "upper right")
 
     if df_grid_carbon_intensity is not None:
-        df_grid_carbon_intensity.index = df_output_sc.index
+        df_grid_carbon_intensity.index = df_output.index
 
         # Use second y-axis
         ax2 = ax.twinx()
@@ -521,15 +481,8 @@ def create_output_fig(
     return fig
 
 
-@st.cache_data
 def create_metrics_fig(metrics):
     metrics_df = pd.DataFrame(metrics)
-
-    # Filter out charging_typ bdc
-    metrics_df = metrics_df[metrics_df["charging_type"] == "sc"]
-
-    # # Drop charging_type column
-    # metrics_df = metrics_df.drop(columns=["charging_type"])
 
     # Translate model_type
     metrics_df["model_type"] = metrics_df["model_type"].map(MODEL_TYPES)
@@ -549,6 +502,7 @@ def create_metrics_fig(metrics):
         ax=ax,
         orient="h",
         palette=sns.color_palette("tab10"),
+        errorbar=None,
     )
     for container in ax.containers:
         ax.bar_label(container, fmt="{:0.1f}%")
@@ -734,7 +688,6 @@ def setup_model(
     df_charging_costs,
     df_grid_carbon_intensity,
     charger_output_power,
-    vehicle_to_building,
 ):
     # Process parking matrix
     num_cars, num_timesteps = df_parking_matrix.shape
@@ -765,7 +718,7 @@ def setup_model(
 
     t_interval = 15 / 60
     P_MAX = charger_output_power * t_interval
-    P_MIN = -P_MAX if vehicle_to_building else 0
+    P_MIN = 0
     TAU = 1
 
     model = create_model(model_type, M, N, E_next, E_cap, E_ini, Pb, C, P_MAX, P_MIN, TAU, f, p, gci)
@@ -779,7 +732,7 @@ def solve_model(solver_type, model):
     pyo.assert_optimal_termination(res)
 
 
-def save_model_output(model, date, model_type, charging_type, ev_portion):
+def save_model_output(model, date, model_type, ev_portion):
     df_output = pd.DataFrame(
         {
             "n": [n for n in model.N],
@@ -789,7 +742,7 @@ def save_model_output(model, date, model_type, charging_type, ev_portion):
         }
     )
 
-    output_file_path = Path(MODEL_OUTPUTS_DIR / f"{date}_{model_type}_{charging_type}_{ev_portion}.csv")
+    output_file_path = Path(MODEL_OUTPUTS_DIR / f"{date}_{model_type}_{ev_portion}.csv")
     df_output.to_csv(output_file_path)
 
     return df_output
@@ -833,9 +786,8 @@ def create_model(model_type, M, N, E_next, E_cap, E_ini, Pb, C, P_MAX, P_MIN, ta
             return P_MIN
 
     model.x = pyo.Var(M, N, initialize=x_init, bounds=x_bounds)  # Charging/ discharging power of EV m in interval i
-    model.y = pyo.Var(
-        N, initialize=0, within=pyo.Reals
-    )  # Total load for charging/discharging the available EVs in interval i
+    # Total load for charging/discharging the available EVs in interval i
+    model.y = pyo.Var(N, initialize=0, within=pyo.Reals)
     model.E_fin = pyo.Var(M, initialize=0, within=pyo.NonNegativeReals)
 
     # Objective function
