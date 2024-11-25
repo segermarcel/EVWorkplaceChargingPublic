@@ -24,3 +24,31 @@ UNCONTROLLED_CHARGING_SHEET_NAME = "Uncontrolled Charging"
 
 CHARGER_OUTPUT_POWER = 11
 SOLVER_TYPE = "gurobi"
+
+N_CARS = {
+    "15%": 142,
+    "30%": 322,
+    "50%": 563,
+    "80%": 871,
+    "100%": 1100,
+}
+
+MODEL_TYPES = {
+    "ps": "Peak Minimisation & Valley Filling (PM-VF)",
+    "ccm": "Charging Cost Minimisation (CCM)",
+    "cem": "Carbon Emission Minimisation (CEM)",
+}
+
+METRICS = [
+    "Max. Peak",
+    "Charging Costs",
+    "Carbon Emissions",
+]
+
+COLUMN_NAMES = {
+    "model_type": "Model Type",
+    "ev_portion": "EV Portion",
+    "max_peak": METRICS[0],
+    "charging_costs": METRICS[1],
+    "carbon_emissions": METRICS[2],
+}
