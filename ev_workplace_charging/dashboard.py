@@ -104,7 +104,7 @@ def dashboard():
     df_power_profile, mean_power = process_uploaded_power_profile(uploaded_power_profile, date)
     df_charging_costs = load_charging_costs_from_api(date)
     df_grid_carbon_intensity = load_grid_carbon_intensity_from_api(date)
-    df_dumb_charging = load_dumb_charging_data_cached(ev_portion, df_power_profile)
+    df_uncontrolled_charging = load_uncontrolled_charging_data_cached(ev_portion, df_power_profile)
 
     # st.write("# Parking Matrix", df_parking_matrix)
     # st.write("# EV Parameters", df_ev_parameters)
@@ -114,13 +114,15 @@ def dashboard():
     # st.line_chart(df_charging_costs.values)
     # st.write("# Grid Carbon Intensity")
     # st.line_chart(df_grid_carbon_intensity.values)
-    # st.write("# Dumb Charging")
-    # st.line_chart(df_dumb_charging.values)
+    # st.write("# Uncontrolled Charging")
+    # st.line_chart(df_uncontrolled_charging.values)
 
     # Uncontrolled charging metrics
-    max_peak_ucc = compute_max_peak(df_dumb_charging)
-    charging_costs_ucc = compute_total_charging_costs(df_dumb_charging, df_power_profile, df_charging_costs)
-    carbon_emissions_ucc = compute_total_carbon_emissions(df_dumb_charging, df_power_profile, df_grid_carbon_intensity)
+    max_peak_ucc = compute_max_peak(df_uncontrolled_charging)
+    charging_costs_ucc = compute_total_charging_costs(df_uncontrolled_charging, df_power_profile, df_charging_costs)
+    carbon_emissions_ucc = compute_total_carbon_emissions(
+        df_uncontrolled_charging, df_power_profile, df_grid_carbon_intensity
+    )
 
     # Main page
     _, col2, _ = st.columns([1, 2, 1])
@@ -196,14 +198,14 @@ def dashboard():
                 if model_type == "ps":
                     fig = create_output_fig(
                         df_output=df_output,
-                        df_dumb_charging=df_dumb_charging,
+                        df_uncontrolled_charging=df_uncontrolled_charging,
                         color=sns.color_palette("tab10")[0],
                         mean_power=mean_power,
                     )
                 elif model_type == "ccm":
                     fig = create_output_fig(
                         df_output=df_output,
-                        df_dumb_charging=df_dumb_charging,
+                        df_uncontrolled_charging=df_uncontrolled_charging,
                         color=sns.color_palette("tab10")[1],
                         df_electricity_costs=df_charging_costs,
                         mean_power=mean_power,
@@ -211,7 +213,7 @@ def dashboard():
                 elif model_type == "cem":
                     fig = create_output_fig(
                         df_output=df_output,
-                        df_dumb_charging=df_dumb_charging,
+                        df_uncontrolled_charging=df_uncontrolled_charging,
                         color=sns.color_palette("tab10")[2],
                         df_grid_carbon_intensity=df_grid_carbon_intensity,
                         mean_power=mean_power,
@@ -298,9 +300,9 @@ def load_grid_carbon_intensity_from_api(date=None):
 
 
 @st.cache_data
-def load_dumb_charging_data_cached(ev_portion, df_power_profile):
-    df_dumb_charging = load_and_process_dumb_charging_data(ev_portion, df_power_profile)
-    return df_dumb_charging
+def load_uncontrolled_charging_data_cached(ev_portion, df_power_profile):
+    df_uncontrolled_charging = load_and_process_uncontrolled_charging_data(ev_portion, df_power_profile)
+    return df_uncontrolled_charging
 
 
 @st.cache_resource(show_spinner="Solving Peak Shaving Model...")
@@ -376,7 +378,7 @@ def setup_and_solve_cem_model(
 
 def create_output_fig(
     df_output,
-    df_dumb_charging,
+    df_uncontrolled_charging,
     mean_power,
     color,
     df_electricity_costs=None,
@@ -386,11 +388,11 @@ def create_output_fig(
 
     # Use n as index
     df_output.index = df_output["n"]
-    df_dumb_charging.index = df_output.index
+    df_uncontrolled_charging.index = df_output.index
 
     # Divide by mean_power
     df_output["Pb"] = df_output["Pb"] / mean_power
-    df_dumb_charging = df_dumb_charging / mean_power
+    df_uncontrolled_charging = df_uncontrolled_charging / mean_power
     df_output["Tc"] = df_output["Tc"] / mean_power
 
     const_C = (min(df_output["Pb"]) + max(df_output["Pb"])) / 2
@@ -405,7 +407,7 @@ def create_output_fig(
         ax=ax,
     )
     sns.lineplot(
-        data=df_dumb_charging,
+        data=df_uncontrolled_charging,
         label="Uncontrolled charging (UCC)",
         # linestyle="dotted",
         color=sns.color_palette("tab10")[3],
@@ -571,15 +573,15 @@ def load_grid_carbon_intensity():
     return df_grid_carbon_intensity
 
 
-def load_dumb_charging_data():
-    df_dumb_charging = pd.read_excel(
+def load_uncontrolled_charging_data():
+    df_uncontrolled_charging = pd.read_excel(
         INPUT_DATA_FILE_PATH,
         sheet_name=UNCONTROLLED_CHARGING_SHEET_NAME,
         index_col=0,
         usecols="C:CU",
         skiprows=3,
     )
-    return df_dumb_charging
+    return df_uncontrolled_charging
 
 
 # LOAD AND PROCESS FUNCTIONS
@@ -612,17 +614,17 @@ def load_and_process_grid_carbon_intensity(date):
     return df_grid_carbon_intensity
 
 
-def load_and_process_dumb_charging_data(ev_portion, df_power_profile):
-    df_dumb_charging = load_dumb_charging_data()
+def load_and_process_uncontrolled_charging_data(ev_portion, df_power_profile):
+    df_uncontrolled_charging = load_uncontrolled_charging_data()
 
     ev_portion = int(ev_portion[:-1]) / 100
-    df_dumb_charging = df_dumb_charging.loc[ev_portion]
+    df_uncontrolled_charging = df_uncontrolled_charging.loc[ev_portion]
 
-    df_dumb_charging = convert_to_datetime_index_and_resample(df_dumb_charging)
+    df_uncontrolled_charging = convert_to_datetime_index_and_resample(df_uncontrolled_charging)
 
-    df_dumb_charging += df_power_profile
+    df_uncontrolled_charging += df_power_profile
 
-    return df_dumb_charging
+    return df_uncontrolled_charging
 
 
 # PROCESS FUNCTIONS
