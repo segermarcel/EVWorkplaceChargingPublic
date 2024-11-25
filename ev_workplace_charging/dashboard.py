@@ -116,7 +116,6 @@ def dashboard():
         metrics_file_path = METRICS_DATA_DIR / output_file_name
 
         if not output_file_path.exists():
-            # if True:
             # Setup dataframes
             df_parking_matrix = generate_parking_matrix(shifts, n_cars)
             df_ev_parameters = generate_ev_parameters(batteries, n_cars)

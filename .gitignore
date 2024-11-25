@@ -162,4 +162,5 @@ cython_debug/
 #.idea/
 
 data/input_data/
-data/model_outputs/
+
+.DS_Store
