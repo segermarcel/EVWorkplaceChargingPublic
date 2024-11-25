@@ -1,13 +1,17 @@
+import datetime
+
 import pandas as pd
 import seaborn as sns
 import streamlit as st
 from matplotlib import pyplot as plt
 
-from ev_workplace_charging.dashboard import COLUMN_NAMES
-from ev_workplace_charging.dashboard import FIGURES_DIR
-from ev_workplace_charging.dashboard import METRICS
-from ev_workplace_charging.dashboard import METRICS_DATA_DIR
-from ev_workplace_charging.dashboard import MODEL_TYPES
+from ev_workplace_charging.settings import COLUMN_NAMES
+from ev_workplace_charging.settings import FIGURES_DIR
+from ev_workplace_charging.settings import METRICS
+from ev_workplace_charging.settings import METRICS_DATA_DIR
+from ev_workplace_charging.settings import MODEL_TYPES
+from ev_workplace_charging.settings import N_CARS
+from ev_workplace_charging.utils.plotting import save_and_write_fig
 
 sns.set_theme(
     context="notebook",
@@ -17,11 +21,22 @@ sns.set_theme(
 
 
 def main():
+    metrics_path = METRICS_DATA_DIR / "metrics.csv"
 
-    metrics_df = pd.read_csv(METRICS_DATA_DIR / "metrics.csv")
+    if not metrics_path.exists():
+        metrics = []
+        for day in range(1, 29):
+            date = datetime.date(2023, 2, day)
+            for ev_portion, n_cars in N_CARS.items():
+                for model_type in MODEL_TYPES:
+                    metrics_path = METRICS_DATA_DIR / f"{date}_{model_type}_{ev_portion}.csv"
+                    metrics_df = pd.read_csv(metrics_path)
+                    metrics.append(metrics_df)
 
-    # Filter out charging_typ bdc
-    metrics_df = metrics_df[metrics_df["charging_type"] == "sc"]
+        metrics_df = pd.concat(metrics)
+        metrics_df.to_csv(metrics_path, index=False)
+    else:
+        metrics_df = pd.read_csv(metrics_path)
 
     # Translate model_type
     metrics_df["model_type"] = metrics_df["model_type"].map(MODEL_TYPES)
@@ -44,7 +59,7 @@ def main():
         )
         st.write(first_day_metrics)
 
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(10, 6))
         sns.lineplot(
             data=first_day_metrics,
             x="EV Portion",
@@ -59,8 +74,7 @@ def main():
         ax.set_xlabel("EV adoption rate [%]")
         ax.set_ylabel("VoSC [%∆]\n(01.02.2023)")
 
-        fig.savefig(FIGURES_DIR / f"lineplot_2023-02-01_{model_type_short}.png", dpi=300)
-        st.write(fig)
+        save_and_write_fig(fig, FIGURES_DIR / f"lineplot_2023-02-01_{model_type_short}.png")
 
         # Boxplots
         daily_metrics = daily_metrics.melt(
@@ -68,7 +82,7 @@ def main():
         )
         st.write(daily_metrics)
 
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(10, 6))
         sns.boxplot(
             data=daily_metrics,
             x="EV Portion",
@@ -81,8 +95,7 @@ def main():
         ax.set_xlabel("EV adoption rate [%]")
         ax.set_ylabel("VoSC [%∆]")
 
-        fig.savefig(FIGURES_DIR / f"metrics_{model_type_short}.png", dpi=300)
-        st.write(fig)
+        save_and_write_fig(fig, FIGURES_DIR / f"metrics_{model_type_short}.png")
 
     st.write("## Summary Statistics")
     summary_df = (
@@ -108,7 +121,7 @@ def main():
     for metric in METRICS:
         st.write(f"## {metric}")
 
-        fig, ax = plt.subplots(figsize=(15, 8))
+        fig, ax = plt.subplots(figsize=(15, 9))
 
         x = "EV Portion"
         hue = "Model Type"
@@ -148,18 +161,16 @@ def main():
         ax.set_xlabel(ax.get_xlabel())
         ax.set_ylabel("Relative Change (SC - UCC)")
 
-        fig.savefig(FIGURES_DIR / f'boxplot_{metric.replace(" ", "_")}.png', dpi=300)
-        st.pyplot(fig)
+        save_and_write_fig(fig, FIGURES_DIR / f'boxplot_{metric.replace(" ", "_")}.png')
 
-        fig, ax = plt.subplots(figsize=(15, 8))
+        fig, ax = plt.subplots(figsize=(15, 9))
         sns.lineplot(data=metrics_df, x="date", y=metric, hue="Model Type", ax=ax)
         ax.set_xticklabels((f"{date:02d}.02.2023" for date in range(1, 29)), rotation=45)
         ax.set_yticklabels([f"{y:.0f}%" for y in ax.get_yticks()])
         ax.set_xlabel("EV adoption rate [%]")
         ax.set_ylabel("VoSC [%∆]")
 
-        fig.savefig(FIGURES_DIR / f'lineplot_{metric.replace(" ", "_")}.png', dpi=300)
-        st.pyplot(fig)
+        save_and_write_fig(fig, FIGURES_DIR / f'lineplot_{metric.replace(" ", "_")}.png')
 
 
 if __name__ == "__main__":

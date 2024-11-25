@@ -12,21 +12,18 @@ rm -rf ~/miniconda3/miniconda.sh
 ~/miniconda3/bin/conda init zsh
 ```
 
-1. Install dependencies with [Poetry](https://python-poetry.org)
+2. Install dependencies with [Poetry](https://python-poetry.org)
 
-Install Poetry by following the install instructions for your OS on their
-[website](https://python-poetry.org/docs/#installation). Then run the following
-commands to install the dependecies:
+Install Poetry by following the install instructions for your OS on their [website](https://python-poetry.org/docs/#installation).
+Then run the following commands to install the dependecies:
 
 ```bash
 poetry install
 ```
 
-1. Install pre-commit hooks
+3. Download input data Excel file and put it under `data/input_data`
 
-```bash
-poetry run pre-commit install
-```
+4. Install gurobi solver: [Getting Started with Gurobi Optimizer](https://support.gurobi.com/hc/en-us/articles/14799677517585-Getting-Started-with-Gurobi-Optimizer)
 
 ## Run streamlit dashboard
 
@@ -34,16 +31,10 @@ poetry run pre-commit install
 poetry run streamlit run ev_workplace_charging/dashboard.py
 ```
 
-## Run optimization models for February 2023 and all scenarios
+## Run optimization models for all days of February 2023 and all scenarios
 
 ```bash
 poetry run python ev_workplace_charging/run_models.py
-```
-
-## Extract metrics from optimization model outputs
-
-```bash
-poetry run python ev_workplace_charging/extract_metrics_from_outputs.py
 ```
 
 ## Visualize input data

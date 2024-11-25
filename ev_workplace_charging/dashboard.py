@@ -29,12 +29,14 @@ from ev_workplace_charging.utils.model_solving import setup_and_solve_cem_model
 from ev_workplace_charging.utils.model_solving import setup_and_solve_ps_model
 from ev_workplace_charging.utils.plotting import create_metrics_fig
 from ev_workplace_charging.utils.plotting import create_output_fig
+from ev_workplace_charging.utils.plotting import save_and_write_fig
 
 # Enable wide layout
 st.set_page_config(layout="wide")
 
 sns.set_theme(
     context="notebook",
+    palette="tab10",
     font_scale=1.5,
 )
 
@@ -84,9 +86,9 @@ def dashboard():
         col2.write(f"## {model_type_long}")
 
         # Run optimization if output file does not already exist, else load output
-        output_file_name = f"{date}_{model_type}_{ev_portion}.csv"
-        output_file_path = MODEL_OUTPUTS_DIR / output_file_name
-        metrics_file_path = METRICS_DATA_DIR / output_file_name
+        output_file_name = f"{date}_{model_type}_{ev_portion}"
+        output_file_path = MODEL_OUTPUTS_DIR / f"{output_file_name}.csv"
+        metrics_file_path = METRICS_DATA_DIR / f"{output_file_name}.csv"
 
         if not output_file_path.exists():
             # Setup dataframes
@@ -185,17 +187,14 @@ def dashboard():
                         grid_carbon_intensity=df_output["grid_carbon_intensity"],
                     )
 
-                plt.tight_layout(pad=2.0)
-                fig.savefig(FIGURES_DIR / f"power_profiles_{date}_{model_type}_{ev_portion}.png", dpi=300)
-                st.write(fig)
+                figure_path = FIGURES_DIR / f"power_profiles_{output_file_name}.png"
+                save_and_write_fig(fig, figure_path)
 
             # Plot metrics
             with col2:
                 fig = create_metrics_fig(df_metrics)
-                # Add padding to left side of figure to prevent label cutoff
-                plt.tight_layout(pad=2.0)
-                fig.savefig(FIGURES_DIR / f"metrics_{date}_{model_type}_{ev_portion}.png", dpi=300)
-                st.write(fig)
+                figure_path = FIGURES_DIR / f"metrics_{output_file_name}.png"
+                save_and_write_fig(fig, figure_path)
 
 
 # Sidebar setup functions

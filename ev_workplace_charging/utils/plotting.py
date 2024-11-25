@@ -1,9 +1,16 @@
 import seaborn as sns
+import streamlit as st
 from matplotlib import pyplot as plt
 
 from ev_workplace_charging.settings import COLUMN_NAMES
 from ev_workplace_charging.settings import METRICS
 from ev_workplace_charging.settings import MODEL_TYPES
+
+
+def save_and_write_fig(fig, figure_path):
+    plt.tight_layout(pad=2.0)
+    fig.savefig(figure_path, dpi=300)
+    st.write(fig)
 
 
 def create_output_fig(

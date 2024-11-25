@@ -3,10 +3,11 @@ import seaborn as sns
 import streamlit as st
 from matplotlib import pyplot as plt
 
-from ev_workplace_charging.dashboard import FIGURES_DIR
-from ev_workplace_charging.dashboard import load_and_process_charging_costs
-from ev_workplace_charging.dashboard import load_and_process_grid_carbon_intensity
-from ev_workplace_charging.dashboard import load_and_process_power_profile
+from ev_workplace_charging.settings import FIGURES_DIR
+from ev_workplace_charging.utils.data_loading import load_and_process_charging_costs
+from ev_workplace_charging.utils.data_loading import load_and_process_grid_carbon_intensity
+from ev_workplace_charging.utils.data_loading import load_and_process_power_profile
+from ev_workplace_charging.utils.plotting import save_and_write_fig
 
 sns.set_theme(
     context="notebook",
@@ -28,10 +29,9 @@ def main():
     df_power_profile = process_df_to_long_form(df_power_profile)
 
     fig, ax = plot_long_form_df(df_power_profile)
-    ax.set_ylabel("Relative Power (normalized to mean of February 2023)")
+    ax.set_ylabel("Power (relative to Feb. 2023)")
 
-    fig.savefig(FIGURES_DIR / "power_profile.png")
-    st.write(fig)
+    save_and_write_fig(fig, FIGURES_DIR / "power_profile.png")
 
     st.write("## Charging Costs")
     df_charging_costs = load_and_process_charging_costs(date=None)
@@ -40,8 +40,7 @@ def main():
     fig, ax = plot_long_form_df(df_charging_costs)
     ax.set_ylabel("Electricity Costs (p/kWh)")
 
-    fig.savefig(FIGURES_DIR / "electricity_costs.png")
-    st.write(fig)
+    save_and_write_fig(fig, FIGURES_DIR / "electricity_costs.png")
 
     st.write("## Grid Carbon Intensity")
     df_grid_carbon_intensity = load_and_process_grid_carbon_intensity(date=None)
@@ -50,8 +49,7 @@ def main():
     fig, ax = plot_long_form_df(df_grid_carbon_intensity)
     ax.set_ylabel("Carbon Intensity (gCO2/kWh)")
 
-    fig.savefig(FIGURES_DIR / "carbon_intensity.png")
-    st.write(fig)
+    save_and_write_fig(fig, FIGURES_DIR / "carbon_intensity.png")
 
 
 def process_df_to_long_form(df):
@@ -67,7 +65,7 @@ def process_df_to_long_form(df):
 
 
 def plot_long_form_df(df_power_profile):
-    fig, ax = plt.subplots(figsize=(15, 6))
+    fig, ax = plt.subplots(figsize=(10, 6))
     sns.lineplot(
         data=df_power_profile,
         x="Time",
