@@ -98,32 +98,6 @@ def dashboard():
             ev_portion = col2.selectbox("EV Portion", list(N_CARS.keys()))
             n_cars = N_CARS[ev_portion]
 
-    # Setup dataframes
-    df_parking_matrix = generate_parking_matrix(shifts, n_cars)
-    df_ev_parameters = generate_ev_parameters(batteries, n_cars)
-    df_power_profile, mean_power = process_uploaded_power_profile(uploaded_power_profile, date)
-    df_charging_costs = load_charging_costs_from_api(date)
-    df_grid_carbon_intensity = load_grid_carbon_intensity_from_api(date)
-    df_uncontrolled_charging = load_uncontrolled_charging_data_cached(ev_portion, df_power_profile)
-
-    # st.write("# Parking Matrix", df_parking_matrix)
-    # st.write("# EV Parameters", df_ev_parameters)
-    # st.write("# Power Profile")
-    # st.line_chart(df_power_profile.values)
-    # st.write("# Charging Costs")
-    # st.line_chart(df_charging_costs.values)
-    # st.write("# Grid Carbon Intensity")
-    # st.line_chart(df_grid_carbon_intensity.values)
-    # st.write("# Uncontrolled Charging")
-    # st.line_chart(df_uncontrolled_charging.values)
-
-    # Uncontrolled charging metrics
-    max_peak_ucc = compute_max_peak(df_uncontrolled_charging)
-    charging_costs_ucc = compute_total_charging_costs(df_uncontrolled_charging, df_power_profile, df_charging_costs)
-    carbon_emissions_ucc = compute_total_carbon_emissions(
-        df_uncontrolled_charging, df_power_profile, df_grid_carbon_intensity
-    )
-
     # Main page
     _, col2, _ = st.columns([1, 2, 1])
     col2.write("# EV Workplace Charging Dashboard")
@@ -131,17 +105,26 @@ def dashboard():
     # Add some space
     st.container(height=32, border=False)
 
-    column_spec = [4, 3]
-
     # Run models
-    metrics = []
     for model_type, model_type_long in MODEL_TYPES.items():
         _, col2, _ = st.columns([1, 2, 1])
         col2.write(f"## {model_type_long}")
 
         # Run optimization if output file does not already exist, else load output
-        output_file_path = MODEL_OUTPUTS_DIR / f"{date}_{model_type}_{ev_portion}.csv"
+        output_file_name = f"{date}_{model_type}_{ev_portion}.csv"
+        output_file_path = MODEL_OUTPUTS_DIR / output_file_name
+        metrics_file_path = METRICS_DATA_DIR / output_file_name
+
         if not output_file_path.exists():
+            # if True:
+            # Setup dataframes
+            df_parking_matrix = generate_parking_matrix(shifts, n_cars)
+            df_ev_parameters = generate_ev_parameters(batteries, n_cars)
+            df_power_profile, mean_power = process_uploaded_power_profile(uploaded_power_profile, date)
+            df_charging_costs = load_charging_costs_from_api(date)
+            df_grid_carbon_intensity = load_grid_carbon_intensity_from_api(date)
+            df_ucc = load_and_process_uncontrolled_charging_data(ev_portion, df_power_profile)
+
             if model_type == "ps":
                 model = setup_and_solve_ps_model(
                     df_parking_matrix=df_parking_matrix,
@@ -169,54 +152,65 @@ def dashboard():
                     solver_type=solver_type,
                 )
 
-            df_output = save_model_output(model, date, model_type, ev_portion)
-        else:
-            df_output = pd.read_csv(output_file_path)
+            df_output = save_model_output(
+                model=model,
+                df_uncontrolled_charging=df_ucc,
+                df_charging_costs=df_charging_costs,
+                df_grid_carbon_intensity=df_grid_carbon_intensity,
+                mean_power=mean_power,
+                output_file_path=output_file_path,
+            )
 
-        # Compute metrics
-        mp = compute_max_peak(df_output["Tc"])
-        cc = compute_total_charging_costs(df_output["Tc"], df_power_profile, df_charging_costs)
-        ce = compute_total_carbon_emissions(df_output["Tc"], df_power_profile, df_grid_carbon_intensity)
+            # Compute metrics
+            mp_ucc = compute_max_peak(df_output["UCC"])
+            cc_ucc = compute_total_charging_costs(df_output["UCC"], df_output["Pb"], df_output["charging_costs"])
+            ce_ucc = compute_total_carbon_emissions(
+                df_output["UCC"], df_output["Pb"], df_output["grid_carbon_intensity"]
+            )
 
-        metrics.append(
-            {
+            mp_model = compute_max_peak(df_output["Tc"])
+            cc_model = compute_total_charging_costs(df_output["Tc"], df_output["Pb"], df_output["charging_costs"])
+            ce_model = compute_total_carbon_emissions(
+                df_output["Tc"], df_output["Pb"], df_output["grid_carbon_intensity"]
+            )
+
+            metrics = {
                 "date": date,
                 "model_type": model_type,
                 "ev_portion": ev_portion,
-                "max_peak": compute_relative_change(mp, max_peak_ucc),
-                "charging_costs": compute_relative_change(cc, charging_costs_ucc),
-                "carbon_emissions": compute_relative_change(ce, carbon_emissions_ucc),
+                "max_peak": compute_relative_change(mp_model, mp_ucc),
+                "charging_costs": compute_relative_change(cc_model, cc_ucc),
+                "carbon_emissions": compute_relative_change(ce_model, ce_ucc),
             }
-        )
+
+            df_metrics = pd.DataFrame(metrics, index=[0])
+            df_metrics.to_csv(metrics_file_path, index=False)
+        else:
+            df_output = pd.read_csv(output_file_path)
+            df_metrics = pd.read_csv(metrics_file_path)
 
         # Plot optimization outputs and metrics
         with st.container():
-            col1, col2 = st.columns(column_spec)
+            col1, col2 = st.columns([4, 3])
 
             # Plot outputs
             with col1:
                 if model_type == "ps":
                     fig = create_output_fig(
                         df_output=df_output,
-                        df_uncontrolled_charging=df_uncontrolled_charging,
                         color=sns.color_palette("tab10")[0],
-                        mean_power=mean_power,
                     )
                 elif model_type == "ccm":
                     fig = create_output_fig(
                         df_output=df_output,
-                        df_uncontrolled_charging=df_uncontrolled_charging,
                         color=sns.color_palette("tab10")[1],
-                        df_electricity_costs=df_charging_costs,
-                        mean_power=mean_power,
+                        electricity_costs=df_output["charging_costs"],
                     )
                 elif model_type == "cem":
                     fig = create_output_fig(
                         df_output=df_output,
-                        df_uncontrolled_charging=df_uncontrolled_charging,
                         color=sns.color_palette("tab10")[2],
-                        df_grid_carbon_intensity=df_grid_carbon_intensity,
-                        mean_power=mean_power,
+                        grid_carbon_intensity=df_output["grid_carbon_intensity"],
                     )
 
                 plt.tight_layout(pad=2.0)
@@ -225,7 +219,7 @@ def dashboard():
 
             # Plot metrics
             with col2:
-                fig = create_metrics_fig(metrics)
+                fig = create_metrics_fig(df_metrics)
                 # Add padding to left side of figure to prevent label cutoff
                 plt.tight_layout(pad=2.0)
                 fig.savefig(FIGURES_DIR / f"metrics_{date}_{model_type}_{ev_portion}.png", dpi=300)
@@ -264,48 +258,36 @@ def setup_battery_capacity(num_batteries):
     return batteries
 
 
-@st.cache_data
 def generate_parking_matrix(shifts, n_cars):
     # TODO: Implement with given shifts. Use Input Data for now.
     df_parking_matrix = load_parking_matrix(n_cars)
     return df_parking_matrix
 
 
-@st.cache_data
 def generate_ev_parameters(batteries, n_cars):
     # TODO: Implement with given batteries. Use Input Data for now.
     df_ev_parameters = load_ev_parameters(n_cars)
     return df_ev_parameters
 
 
-@st.cache_data
 def process_uploaded_power_profile(uploaded_power_profile=None, date=None):
     # TODO: Implement with power profile. Use Input Data for now.
     df_power_profile, mean_power = load_and_process_power_profile(date)
     return df_power_profile, mean_power
 
 
-@st.cache_data
 def load_charging_costs_from_api(date=None):
     # TODO: Load from API. Use Input data for now.
     df_charging_costs = load_and_process_charging_costs(date)
     return df_charging_costs
 
 
-@st.cache_data
 def load_grid_carbon_intensity_from_api(date=None):
     # TODO: Load from API. Use Input data for now.
     df_grid_carbon_intensity = load_and_process_grid_carbon_intensity(date)
     return df_grid_carbon_intensity
 
 
-@st.cache_data
-def load_uncontrolled_charging_data_cached(ev_portion, df_power_profile):
-    df_uncontrolled_charging = load_and_process_uncontrolled_charging_data(ev_portion, df_power_profile)
-    return df_uncontrolled_charging
-
-
-@st.cache_resource(show_spinner="Solving Peak Shaving Model...")
 def setup_and_solve_ps_model(
     df_parking_matrix,
     df_ev_parameters,
@@ -328,7 +310,6 @@ def setup_and_solve_ps_model(
     return ps_model
 
 
-@st.cache_resource(show_spinner="Solving Charging Cost Minimization Model...")
 def setup_and_solve_ccm_model(
     df_parking_matrix,
     df_ev_parameters,
@@ -352,7 +333,6 @@ def setup_and_solve_ccm_model(
     return ccm_model
 
 
-@st.cache_resource(show_spinner="Solving Carbon Emission Minimization Model...")
 def setup_and_solve_cem_model(
     df_parking_matrix,
     df_ev_parameters,
@@ -378,22 +358,14 @@ def setup_and_solve_cem_model(
 
 def create_output_fig(
     df_output,
-    df_uncontrolled_charging,
-    mean_power,
     color,
-    df_electricity_costs=None,
-    df_grid_carbon_intensity=None,
+    electricity_costs=None,
+    grid_carbon_intensity=None,
 ):
     fig, ax = plt.subplots(figsize=(10, 6))
 
     # Use n as index
     df_output.index = df_output["n"]
-    df_uncontrolled_charging.index = df_output.index
-
-    # Divide by mean_power
-    df_output["Pb"] = df_output["Pb"] / mean_power
-    df_uncontrolled_charging = df_uncontrolled_charging / mean_power
-    df_output["Tc"] = df_output["Tc"] / mean_power
 
     const_C = (min(df_output["Pb"]) + max(df_output["Pb"])) / 2
 
@@ -407,9 +379,10 @@ def create_output_fig(
         ax=ax,
     )
     sns.lineplot(
-        data=df_uncontrolled_charging,
+        data=df_output,
+        x=df_output.index,
+        y="UCC",
         label="Uncontrolled charging (UCC)",
-        # linestyle="dotted",
         color=sns.color_palette("tab10")[3],
         linewidth=2.5,
         ax=ax,
@@ -431,12 +404,11 @@ def create_output_fig(
         label="Constant C",
     )
 
-    if df_electricity_costs is not None:
-        df_electricity_costs.index = df_output.index
-
+    if electricity_costs is not None:
         ax2 = ax.twinx()
         sns.lineplot(
-            data=df_electricity_costs,
+            x=df_output.index,
+            y=electricity_costs,
             label="Electricity Costs",
             linestyle="--",
             color="gray",
@@ -449,14 +421,11 @@ def create_output_fig(
 
         sns.move_legend(ax2, "upper right")
 
-    if df_grid_carbon_intensity is not None:
-        df_grid_carbon_intensity.index = df_output.index
-
-        # Use second y-axis
+    if grid_carbon_intensity is not None:
         ax2 = ax.twinx()
-
         sns.lineplot(
-            data=df_grid_carbon_intensity,
+            x=df_output.index,
+            y=grid_carbon_intensity,
             label="Grid Carbon Intensity",
             linestyle="--",
             linewidth=1.5,
@@ -483,9 +452,7 @@ def create_output_fig(
     return fig
 
 
-def create_metrics_fig(metrics):
-    metrics_df = pd.DataFrame(metrics)
-
+def create_metrics_fig(metrics_df):
     # Translate model_type
     metrics_df["model_type"] = metrics_df["model_type"].map(MODEL_TYPES)
 
@@ -664,18 +631,12 @@ def compute_max_peak(df_with_peaks):
     return df_with_peaks.max()
 
 
-def compute_total_charging_costs(df_charging, df_power_profile, df_charging_costs):
-    charging_costs_total = ((df_charging.values - df_power_profile.values) * df_charging_costs.values / 100).sum()
-
-    return charging_costs_total
+def compute_total_charging_costs(charging_values, power_profile_values, charging_cost_values):
+    return ((charging_values - power_profile_values) * charging_cost_values / 100).sum()
 
 
-def compute_total_carbon_emissions(df_charging, df_power_profile, df_grid_carbon_intensity):
-    carbon_emissions_total = (
-        (df_charging.values - df_power_profile.values) * df_grid_carbon_intensity.values / 1000
-    ).sum()
-
-    return carbon_emissions_total
+def compute_total_carbon_emissions(charging_values, power_profile_values, grid_carbon_intensity_values):
+    return ((charging_values - power_profile_values) * grid_carbon_intensity_values / 1000).sum()
 
 
 def compute_relative_change(new, old):
@@ -734,20 +695,38 @@ def solve_model(solver_type, model):
     pyo.assert_optimal_termination(res)
 
 
-def save_model_output(model, date, model_type, ev_portion):
+def save_model_output(
+    model,
+    df_uncontrolled_charging,
+    df_charging_costs,
+    df_grid_carbon_intensity,
+    mean_power,
+    output_file_path,
+):
+    # Create df
     df_output = pd.DataFrame(
         {
             "n": [n for n in model.N],
             "y": [pyo.value(model.y[n]) for n in model.N],
             "Pb": [pyo.value(model.Pb[n]) for n in model.N],
             "Tc": [pyo.value(model.Pb[n]) + pyo.value(model.y[n]) for n in model.N],
+            "UCC": df_uncontrolled_charging.values,
+            "charging_costs": df_charging_costs.values,
+            "grid_carbon_intensity": df_grid_carbon_intensity.values,
         }
     )
 
-    output_file_path = Path(MODEL_OUTPUTS_DIR / f"{date}_{model_type}_{ev_portion}.csv")
-    df_output.to_csv(output_file_path)
+    df_output_unscaled = df_output.copy()
 
-    return df_output
+    # Divide by mean_power
+    df_output["Pb"] = df_output["Pb"] / mean_power
+    df_output["Tc"] = df_output["Tc"] / mean_power
+    df_output["UCC"] = df_output["UCC"] / mean_power
+
+    # Save
+    df_output.to_csv(output_file_path, index=False)
+
+    return df_output_unscaled
 
 
 def create_model(model_type, M, N, E_next, E_cap, E_ini, Pb, C, P_MAX, P_MIN, tau, f, p=None, gci=None):
