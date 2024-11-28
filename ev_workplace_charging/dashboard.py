@@ -74,16 +74,14 @@ def dashboard():
             n_cars = N_CARS[ev_portion]
 
     # Main page
-    _, col2, _ = st.columns([1, 2, 1])
-    col2.write("# EV Workplace Charging Dashboard")
+    st.write("# EV Workplace Charging Dashboard")
 
     # Add some space
     st.container(height=32, border=False)
 
     # Run models
     for model_type, model_type_long in MODEL_TYPES.items():
-        _, col2, _ = st.columns([1, 2, 1])
-        col2.write(f"## {model_type_long}")
+        st.write(f"## {model_type_long}")
 
         # Run optimization if output file does not already exist, else load output
         output_file_name = f"{date}_{model_type}_{ev_portion}"
