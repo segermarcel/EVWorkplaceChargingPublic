@@ -12,7 +12,7 @@ INPUT_DATA_DIR.mkdir(parents=True, exist_ok=True)
 METRICS_DATA_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
-INPUT_DATA_FILE_PATH = INPUT_DATA_DIR / "EVWorkplaceCharging-Input-Data_V2.xlsx"
+INPUT_DATA_FILE_PATH = INPUT_DATA_DIR / "EVWorkplaceCharging-Input-Data.xlsx"
 
 # Input data sheet names
 EV_PARAMETERS_SHEET_NAME = "EV Parameters"
