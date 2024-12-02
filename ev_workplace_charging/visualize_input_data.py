@@ -29,7 +29,7 @@ def main():
     df_power_profile = process_df_to_long_form(df_power_profile)
 
     fig, ax = plot_long_form_df(df_power_profile)
-    ax.set_ylabel("Power (relative to Feb. 2023)")
+    ax.set_ylabel("Relative Power (normalized to Feb. 2023)")
 
     save_and_write_fig(fig, FIGURES_DIR / "power_profile.png")
 

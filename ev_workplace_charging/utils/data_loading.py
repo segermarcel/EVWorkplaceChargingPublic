@@ -5,8 +5,8 @@ from ev_workplace_charging.settings import EV_PARAMETERS_SHEET_NAME
 from ev_workplace_charging.settings import EV_PARKING_MATRIX_SHEET_NAME
 from ev_workplace_charging.settings import GRID_CARBON_INTENSITY_SHEET_NAME
 from ev_workplace_charging.settings import INPUT_DATA_FILE_PATH
-from ev_workplace_charging.settings import POWER_DATA_PB_SHEET_NAME
-from ev_workplace_charging.settings import UNCONTROLLED_CHARGING_SHEET_NAME
+from ev_workplace_charging.settings import POWER_DATA_SHEET_NAME
+from ev_workplace_charging.settings import UCC_SUMMARY_SHEET_NAME
 
 
 def generate_parking_matrix(shifts, n_cars):
@@ -54,7 +54,7 @@ def load_ev_parameters(n_cars):
         INPUT_DATA_FILE_PATH,
         sheet_name=EV_PARAMETERS_SHEET_NAME,
         index_col=0,
-        usecols="A:L",
+        usecols="A:J",
         nrows=n_cars,
     )
     return df_ev_parameters
@@ -63,7 +63,7 @@ def load_ev_parameters(n_cars):
 def load_power_profile():
     df_power_profile = pd.read_excel(
         INPUT_DATA_FILE_PATH,
-        sheet_name=POWER_DATA_PB_SHEET_NAME,
+        sheet_name=POWER_DATA_SHEET_NAME,
         usecols="B:CU",
         skiprows=5,
         nrows=28,
@@ -96,7 +96,7 @@ def load_grid_carbon_intensity():
 def load_uncontrolled_charging_data():
     df_uncontrolled_charging = pd.read_excel(
         INPUT_DATA_FILE_PATH,
-        sheet_name=UNCONTROLLED_CHARGING_SHEET_NAME,
+        sheet_name=UCC_SUMMARY_SHEET_NAME,
         index_col=0,
         usecols="C:CU",
         skiprows=3,

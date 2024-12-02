@@ -103,7 +103,7 @@ def create_output_fig(
     ax.set_xlabel("")
     ax.set_xlim(0, 97)
     ax.tick_params(axis="y")
-    ax.set_ylabel("Power (relative to Feb. 2023)")
+    ax.set_ylabel("Relative Power (normalized to Feb. 2023)")
     # ax.set_ylim(1000, 5000)
 
     return fig

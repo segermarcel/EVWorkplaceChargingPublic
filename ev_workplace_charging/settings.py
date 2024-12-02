@@ -17,10 +17,10 @@ INPUT_DATA_FILE_PATH = INPUT_DATA_DIR / "EVWorkplaceCharging-Input-Data.xlsx"
 # Input data sheet names
 EV_PARAMETERS_SHEET_NAME = "EV Parameters"
 EV_PARKING_MATRIX_SHEET_NAME = "EV Parking Matrix"
-POWER_DATA_PB_SHEET_NAME = "Power Data Pb_original"
+POWER_DATA_SHEET_NAME = "Power Data"
 ELECTRICITY_COSTS_SHEET_NAME = "Electricity Costs"
 GRID_CARBON_INTENSITY_SHEET_NAME = "Grid Carbon Intensity"
-UNCONTROLLED_CHARGING_SHEET_NAME = "Uncontrolled Charging"
+UCC_SUMMARY_SHEET_NAME = "UCC Summary"
 
 CHARGER_OUTPUT_POWER = 11
 SOLVER_TYPE = "gurobi"
