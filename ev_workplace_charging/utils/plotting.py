@@ -104,7 +104,7 @@ def create_output_fig(
     ax.set_xlabel("")
     ax.set_xlim(0, 97)
     ax.tick_params(axis="y")
-    ax.set_ylabel("Electricity demand (normalized to Feb. 2023)")
+    ax.set_ylabel("Energy consumption (kWh) (normalised)")
     # ax.set_ylim(1000, 5000)
 
     return fig

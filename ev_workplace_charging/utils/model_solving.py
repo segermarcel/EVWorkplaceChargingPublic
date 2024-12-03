@@ -106,7 +106,7 @@ def setup_model(
     else:
         gci = None
 
-    t_interval = 15 / 60
+    t_interval = 15/60
     P_MAX = charger_output_power * t_interval
     P_MIN = 0
     TAU = 1
