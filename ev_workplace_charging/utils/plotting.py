@@ -1,6 +1,7 @@
 import seaborn as sns
 import streamlit as st
 from matplotlib import pyplot as plt
+from PIL import Image
 
 from ev_workplace_charging.settings import COLUMN_NAMES
 from ev_workplace_charging.settings import METRICS
@@ -10,7 +11,7 @@ from ev_workplace_charging.settings import MODEL_TYPES
 def save_and_write_fig(fig, figure_path):
     plt.tight_layout(pad=2.0)
     fig.savefig(figure_path, dpi=300)
-    st.write(fig)
+    st.image(Image.open(figure_path))
 
 
 def create_output_fig(
@@ -103,7 +104,7 @@ def create_output_fig(
     ax.set_xlabel("")
     ax.set_xlim(0, 97)
     ax.tick_params(axis="y")
-    ax.set_ylabel("Relative Power (normalized to Feb. 2023)")
+    ax.set_ylabel("Electricity demand (normalized to Feb. 2023)")
     # ax.set_ylim(1000, 5000)
 
     return fig
