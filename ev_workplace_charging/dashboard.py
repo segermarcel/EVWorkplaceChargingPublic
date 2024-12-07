@@ -185,7 +185,7 @@ def dashboard():
                         grid_carbon_intensity=df_output["grid_carbon_intensity"],
                     )
 
-                figure_path = FIGURES_DIR / f"power_profiles_{output_file_name}.png"
+                figure_path = FIGURES_DIR / f"electricity_consumption_profiles_{output_file_name}.png"
                 save_and_write_fig(fig, figure_path)
 
             # Plot metrics
@@ -216,7 +216,7 @@ def setup_battery_capacity(num_batteries):
     for battery_id in range(num_batteries):
         col1, col2 = st.columns(2)
 
-        capacity = col1.number_input("kwH", value=60, min_value=1, max_value=100, key=f"{battery_id}_capacity")
+        capacity = col1.number_input("kWh", value=60, min_value=1, max_value=100, key=f"{battery_id}_capacity")
         relative_portion = col2.number_input(
             "Relative %", value=100 // num_batteries, min_value=0, max_value=100, key=f"{battery_id}_portion"
         )

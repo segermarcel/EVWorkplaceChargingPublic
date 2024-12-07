@@ -17,9 +17,9 @@ sns.set_theme(
 
 
 def main():
-    st.write("# Visualize Input Data")
+    st.write("# Visualise Input Data")
 
-    st.write("## Power Profile")
+    st.write("## Electricity consumption profile")
     df_power_profile, mean_power = load_and_process_power_profile(date=None)
 
     # Divide each row by the mean of all values in df
@@ -29,25 +29,25 @@ def main():
     df_power_profile = process_df_to_long_form(df_power_profile)
 
     fig, ax = plot_long_form_df(df_power_profile)
-    ax.set_ylabel("Energy consumption (kWh) (normalised)")
+    ax.set_ylabel("Electricity consumption [kWh] (normalised)")
 
-    save_and_write_fig(fig, FIGURES_DIR / "power_profile.png")
+    save_and_write_fig(fig, FIGURES_DIR / "electricity_consumption_profile.png")
 
-    st.write("## Charging Costs")
+    st.write("## Charging costs")
     df_charging_costs = load_and_process_charging_costs(date=None)
     df_charging_costs = process_df_to_long_form(df_charging_costs)
 
     fig, ax = plot_long_form_df(df_charging_costs)
-    ax.set_ylabel("Electricity Costs (p/kWh)")
+    ax.set_ylabel("Electricity costs [p/kWh]")
 
     save_and_write_fig(fig, FIGURES_DIR / "electricity_costs.png")
 
-    st.write("## Grid Carbon Intensity")
+    st.write("## Grid carbon intensity")
     df_grid_carbon_intensity = load_and_process_grid_carbon_intensity(date=None)
     df_grid_carbon_intensity = process_df_to_long_form(df_grid_carbon_intensity)
 
     fig, ax = plot_long_form_df(df_grid_carbon_intensity)
-    ax.set_ylabel("Carbon Intensity (gCO2/kWh)")
+    ax.set_ylabel("Carbon intensity [gCO2/kWh]")
 
     save_and_write_fig(fig, FIGURES_DIR / "carbon_intensity.png")
 

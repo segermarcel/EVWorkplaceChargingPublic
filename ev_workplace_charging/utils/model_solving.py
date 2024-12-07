@@ -193,7 +193,7 @@ def create_model(model_type, M, N, E_next, E_cap, E_ini, Pb, C, P_MAX, P_MIN, ta
         else:
             return P_MIN
 
-    model.x = pyo.Var(M, N, initialize=x_init, bounds=x_bounds)  # Charging/ discharging power of EV m in interval i
+    model.x = pyo.Var(M, N, initialize=x_init, bounds=x_bounds)  # Charging/ discharging electrcity load of EV m in interval i
     # Total load for charging/discharging the available EVs in interval i
     model.y = pyo.Var(N, initialize=0, within=pyo.Reals)
     model.E_fin = pyo.Var(M, initialize=0, within=pyo.NonNegativeReals)

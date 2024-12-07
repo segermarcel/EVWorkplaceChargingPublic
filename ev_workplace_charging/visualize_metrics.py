@@ -159,7 +159,7 @@ def main():
         ax.set_xticklabels(ax.get_xticklabels())
         ax.set_yticklabels([f"{y:.0f}%" for y in ax.get_yticks()])
         ax.set_xlabel(ax.get_xlabel())
-        ax.set_ylabel("Relative Change (SC - UCC)")
+        ax.set_ylabel("VoSC [%∆]")
 
         save_and_write_fig(fig, FIGURES_DIR / f'boxplot_{metric.replace(" ", "_")}.png')
 

@@ -10,8 +10,9 @@ from ev_workplace_charging.settings import MODEL_TYPES
 
 def save_and_write_fig(fig, figure_path):
     plt.tight_layout(pad=2.0)
-    fig.savefig(figure_path, dpi=300)
+    fig.savefig(figure_path, format='png', dpi=300)
     st.image(Image.open(figure_path))
+
 
 
 def create_output_fig(
@@ -31,7 +32,7 @@ def create_output_fig(
         data=df_output,
         x=df_output.index,
         y="Pb",
-        label="Energy Demand Curve Industrial Site",
+        label="Electricity demand curve industrial site",
         color="gray",
         linewidth=1.5,
         ax=ax,
@@ -40,7 +41,7 @@ def create_output_fig(
         data=df_output,
         x=df_output.index,
         y="UCC",
-        label="Uncontrolled Charging (UCC)",
+        label="Uncontrolled charging (UCC)",
         color=sns.color_palette("tab10")[3],
         linewidth=2.5,
         ax=ax,
@@ -49,7 +50,7 @@ def create_output_fig(
         data=df_output,
         x=df_output.index,
         y="Tc",
-        label="Smart Charging (SC)",
+        label="Smart charging (SC)",
         color=color,
         linewidth=2.5,
         ax=ax,
@@ -67,14 +68,14 @@ def create_output_fig(
         sns.lineplot(
             x=df_output.index,
             y=electricity_costs,
-            label="Electricity Costs",
+            label="Electricity costs",
             linestyle="--",
             color="gray",
             linewidth=1.5,
             ax=ax2,
         )
 
-        ax2.set_ylabel("Electricity Costs (p/kWh)")
+        ax2.set_ylabel("Electricity costs [p/kWh]")
         ax2.tick_params(axis="y")
 
         sns.move_legend(ax2, "upper right")
@@ -84,14 +85,14 @@ def create_output_fig(
         sns.lineplot(
             x=df_output.index,
             y=grid_carbon_intensity,
-            label="Grid Carbon Intensity",
+            label="Grid carbon intensity",
             linestyle="--",
             linewidth=1.5,
             color="gray",
             ax=ax2,
         )
 
-        ax2.set_ylabel("Grid Carbon Intensity (gCO2/kWh)")
+        ax2.set_ylabel("Grid carbon intensity [gCO2/kWh]")
         ax2.tick_params(axis="y")
 
         sns.move_legend(ax2, "upper right")
@@ -104,7 +105,7 @@ def create_output_fig(
     ax.set_xlabel("")
     ax.set_xlim(0, 97)
     ax.tick_params(axis="y")
-    ax.set_ylabel("Energy consumption (kWh) (normalised)")
+    ax.set_ylabel("Electricity consumption [kWh] (normalised)")
     # ax.set_ylim(1000, 5000)
 
     return fig
@@ -136,7 +137,7 @@ def create_metrics_fig(metrics_df):
     # Add 15% more to xlimits in both directions
     ax.set_xlim(ax.get_xlim()[0] * 1.15, ax.get_xlim()[1] * 1.15)
     ax.set_xticklabels([f"{int(x)}%" for x in ax.get_xticks()])
-    ax.set_xlabel("Relative Change (SC - UCC)")
+    ax.set_xlabel("Value of smart charging (VoSC) [%∆]")
     ax.tick_params(axis="y")
     ax.set_ylabel("")
 
