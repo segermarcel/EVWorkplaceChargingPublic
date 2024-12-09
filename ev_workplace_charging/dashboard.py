@@ -185,13 +185,13 @@ def dashboard():
                         grid_carbon_intensity=df_output["grid_carbon_intensity"],
                     )
 
-                figure_path = FIGURES_DIR / f"electricity_consumption_profiles_{output_file_name}.png"
+                figure_path = FIGURES_DIR / f"electricity_consumption_profiles_{output_file_name}.svg"
                 save_and_write_fig(fig, figure_path)
 
             # Plot metrics
             with col2:
                 fig = create_metrics_fig(df_metrics)
-                figure_path = FIGURES_DIR / f"metrics_{output_file_name}.png"
+                figure_path = FIGURES_DIR / f"metrics_{output_file_name}.svg"
                 save_and_write_fig(fig, figure_path)
 
 

@@ -31,7 +31,7 @@ def main():
     fig, ax = plot_long_form_df(df_power_profile)
     ax.set_ylabel("Electricity consumption [kWh] (normalised)")
 
-    save_and_write_fig(fig, FIGURES_DIR / "electricity_consumption_profile.png")
+    save_and_write_fig(fig, FIGURES_DIR / "electricity_consumption_profile.svg")
 
     st.write("## Charging costs")
     df_charging_costs = load_and_process_charging_costs(date=None)
@@ -40,7 +40,7 @@ def main():
     fig, ax = plot_long_form_df(df_charging_costs)
     ax.set_ylabel("Electricity costs [p/kWh]")
 
-    save_and_write_fig(fig, FIGURES_DIR / "electricity_costs.png")
+    save_and_write_fig(fig, FIGURES_DIR / "electricity_costs.svg")
 
     st.write("## Grid carbon intensity")
     df_grid_carbon_intensity = load_and_process_grid_carbon_intensity(date=None)
@@ -49,7 +49,7 @@ def main():
     fig, ax = plot_long_form_df(df_grid_carbon_intensity)
     ax.set_ylabel("Carbon intensity [gCO2/kWh]")
 
-    save_and_write_fig(fig, FIGURES_DIR / "carbon_intensity.png")
+    save_and_write_fig(fig, FIGURES_DIR / "carbon_intensity.svg")
 
 
 def process_df_to_long_form(df):

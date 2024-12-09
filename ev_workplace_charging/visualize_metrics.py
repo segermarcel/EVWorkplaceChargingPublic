@@ -74,7 +74,7 @@ def main():
         ax.set_xlabel("EV adoption rate [%]")
         ax.set_ylabel("VoSC [%∆]\n(01.02.2023)")
 
-        save_and_write_fig(fig, FIGURES_DIR / f"lineplot_2023-02-01_{model_type_short}.png")
+        save_and_write_fig(fig, FIGURES_DIR / f"lineplot_2023-02-01_{model_type_short}.svg")
 
         # Boxplots
         daily_metrics = daily_metrics.melt(
@@ -95,7 +95,7 @@ def main():
         ax.set_xlabel("EV adoption rate [%]")
         ax.set_ylabel("VoSC [%∆]")
 
-        save_and_write_fig(fig, FIGURES_DIR / f"metrics_{model_type_short}.png")
+        save_and_write_fig(fig, FIGURES_DIR / f"metrics_{model_type_short}.svg")
 
     st.write("## Summary Statistics")
     summary_df = (
@@ -161,7 +161,7 @@ def main():
         ax.set_xlabel(ax.get_xlabel())
         ax.set_ylabel("VoSC [%∆]")
 
-        save_and_write_fig(fig, FIGURES_DIR / f'boxplot_{metric.replace(" ", "_")}.png')
+        save_and_write_fig(fig, FIGURES_DIR / f'boxplot_{metric.replace(" ", "_")}.svg')
 
         fig, ax = plt.subplots(figsize=(15, 9))
         sns.lineplot(data=metrics_df, x="date", y=metric, hue="Model Type", ax=ax)
@@ -170,7 +170,7 @@ def main():
         ax.set_xlabel("EV adoption rate [%]")
         ax.set_ylabel("VoSC [%∆]")
 
-        save_and_write_fig(fig, FIGURES_DIR / f'lineplot_{metric.replace(" ", "_")}.png')
+        save_and_write_fig(fig, FIGURES_DIR / f'lineplot_{metric.replace(" ", "_")}.svg')
 
 
 if __name__ == "__main__":

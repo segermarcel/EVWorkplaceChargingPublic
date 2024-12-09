@@ -9,9 +9,10 @@ from ev_workplace_charging.settings import MODEL_TYPES
 
 
 def save_and_write_fig(fig, figure_path):
-    plt.tight_layout(pad=2.0)
-    fig.savefig(figure_path, format='png', dpi=300)
-    st.image(Image.open(figure_path))
+    plt.tight_layout(pad=1.0)
+    fig.savefig(figure_path.with_suffix('.png'), format='png')
+    st.image(Image.open(figure_path.with_suffix('.png')))
+    fig.savefig(figure_path, format='svg')
 
 
 
