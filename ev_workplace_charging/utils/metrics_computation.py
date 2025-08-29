@@ -17,4 +17,8 @@ def compute_total_carbon_emissions(
 
 
 def compute_relative_change(new, old):
-    return (new - old) / old * 100
+    return compute_absolute_change(new, old) / old * 100
+
+
+def compute_absolute_change(new, old):
+    return new - old

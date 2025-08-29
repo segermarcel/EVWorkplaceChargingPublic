@@ -92,7 +92,7 @@ def setup_model(
 
     # Process Power Profile
     Pb = {n: df_power_profile.values[n - 1] for n in N}
-    C = (min(df_power_profile) + max(df_power_profile)) / 2
+    C = (df_power_profile.min().values[0] + df_power_profile.max().values[0]) / 2
 
     # Process charging costs
     if model_type == "ccm":
@@ -125,37 +125,33 @@ def solve_model(solver_type, model):
 
 
 def save_model_output(
+    date,
     model,
+    output_file_path,
     df_uncontrolled_charging,
     df_charging_costs,
     df_grid_carbon_intensity,
-    mean_power,
-    output_file_path,
 ):
     # Create df
     df_output = pd.DataFrame(
         {
-            "n": [n for n in model.N],
+            "date": [date] * len(model.N),
+            "n": model.N,
             "y": [pyo.value(model.y[n]) for n in model.N],
-            "Pb": [pyo.value(model.Pb[n]) for n in model.N],
-            "Tc": [pyo.value(model.Pb[n]) + pyo.value(model.y[n]) for n in model.N],
-            "UCC": df_uncontrolled_charging.values,
-            "charging_costs": df_charging_costs.values,
+            "Pb": [float(pyo.value(model.Pb[n])) for n in model.N],
+            "Tc": [
+                float(pyo.value(model.Pb[n])) + pyo.value(model.y[n]) for n in model.N
+            ],
+            "UCC": df_uncontrolled_charging["Verbrauch"].values,
+            "charging_costs": df_charging_costs["Price"].values,
             "grid_carbon_intensity": df_grid_carbon_intensity.values,
         }
     )
 
-    df_output_unscaled = df_output.copy()
-
-    # Divide by mean_power
-    df_output["Pb"] = df_output["Pb"] / mean_power
-    df_output["Tc"] = df_output["Tc"] / mean_power
-    df_output["UCC"] = df_output["UCC"] / mean_power
-
     # Save
     df_output.to_csv(output_file_path, index=False)
 
-    return df_output_unscaled
+    return df_output
 
 
 def create_model(
@@ -212,7 +208,7 @@ def create_model(
 
     model.x = pyo.Var(
         M, N, initialize=x_init, bounds=x_bounds
-    )  # Charging/ discharging electrcity load of EV m in interval i
+    )  # Charging/ discharging power of EV m in interval i
     # Total load for charging/discharging the available EVs in interval i
     model.y = pyo.Var(N, initialize=0, within=pyo.Reals)
     model.E_fin = pyo.Var(M, initialize=0, within=pyo.NonNegativeReals)

@@ -6,10 +6,12 @@ readme = "README.md"
 authors = []
 requires-python = ">=3.11"
 dependencies = [
+    "entsoe-py>=0.7.4",
     "pandas>=2.3.2",
     "pyomo>=6.9.4",
     "seaborn>=0.13.2",
     "streamlit>=1.49.0",
+    "tqdm>=4.67.1",
 ]
 
 [build-system]
