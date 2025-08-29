@@ -106,12 +106,14 @@ def setup_model(
     else:
         gci = None
 
-    t_interval = 15/60
+    t_interval = 15 / 60
     P_MAX = charger_output_power * t_interval
     P_MIN = 0
     TAU = 1
 
-    model = create_model(model_type, M, N, E_next, E_cap, E_ini, Pb, C, P_MAX, P_MIN, TAU, f, p, gci)
+    model = create_model(
+        model_type, M, N, E_next, E_cap, E_ini, Pb, C, P_MAX, P_MIN, TAU, f, p, gci
+    )
 
     return model
 
@@ -156,7 +158,22 @@ def save_model_output(
     return df_output_unscaled
 
 
-def create_model(model_type, M, N, E_next, E_cap, E_ini, Pb, C, P_MAX, P_MIN, tau, f, p=None, gci=None):
+def create_model(
+    model_type,
+    M,
+    N,
+    E_next,
+    E_cap,
+    E_ini,
+    Pb,
+    C,
+    P_MAX,
+    P_MIN,
+    tau,
+    f,
+    p=None,
+    gci=None,
+):
     model = pyo.ConcreteModel(name=model_type)
 
     # Sets
@@ -193,7 +210,9 @@ def create_model(model_type, M, N, E_next, E_cap, E_ini, Pb, C, P_MAX, P_MIN, ta
         else:
             return P_MIN
 
-    model.x = pyo.Var(M, N, initialize=x_init, bounds=x_bounds)  # Charging/ discharging electrcity load of EV m in interval i
+    model.x = pyo.Var(
+        M, N, initialize=x_init, bounds=x_bounds
+    )  # Charging/ discharging electrcity load of EV m in interval i
     # Total load for charging/discharging the available EVs in interval i
     model.y = pyo.Var(N, initialize=0, within=pyo.Reals)
     model.E_fin = pyo.Var(M, initialize=0, within=pyo.NonNegativeReals)
@@ -216,22 +235,36 @@ def create_model(model_type, M, N, E_next, E_cap, E_ini, Pb, C, P_MAX, P_MIN, ta
     model.evchargingload = pyo.Constraint(N, rule=evchargingload_rule)
 
     def lbcharge_rule(mdl, m, n):
-        return mdl.E_ini[m] + sum(mdl.tau * mdl.x[m, k] * mdl.f[m, k] for k in range(1, n + 1)) >= 0
+        return (
+            mdl.E_ini[m]
+            + sum(mdl.tau * mdl.x[m, k] * mdl.f[m, k] for k in range(1, n + 1))
+            >= 0
+        )
 
     model.lbcharge = pyo.Constraint(M, N, rule=lbcharge_rule)
 
     def ubcharge_rule(mdl, m, n):
-        return mdl.E_ini[m] + sum(mdl.tau * mdl.x[m, k] * mdl.f[m, k] for k in range(1, n + 1)) <= mdl.E_cap[m]
+        return (
+            mdl.E_ini[m]
+            + sum(mdl.tau * mdl.x[m, k] * mdl.f[m, k] for k in range(1, n + 1))
+            <= mdl.E_cap[m]
+        )
 
     model.ubcharge = pyo.Constraint(M, N, rule=ubcharge_rule)
 
     def SoCfinal_rule(mdl, m):
-        return mdl.E_ini[m] + sum(mdl.tau * mdl.x[m, n] * mdl.f[m, n] for n in mdl.N) == mdl.E_fin[m]
+        return (
+            mdl.E_ini[m] + sum(mdl.tau * mdl.x[m, n] * mdl.f[m, n] for n in mdl.N)
+            == mdl.E_fin[m]
+        )
 
     model.SoCfinal = pyo.Constraint(M, rule=SoCfinal_rule)
 
     def SoCnext_rule(mdl, m):
-        return mdl.E_ini[m] + sum(mdl.tau * mdl.x[m, n] * mdl.f[m, n] for n in mdl.N) >= mdl.E_next[m]
+        return (
+            mdl.E_ini[m] + sum(mdl.tau * mdl.x[m, n] * mdl.f[m, n] for n in mdl.N)
+            >= mdl.E_next[m]
+        )
 
     model.SoCnext = pyo.Constraint(M, rule=SoCnext_rule)
 

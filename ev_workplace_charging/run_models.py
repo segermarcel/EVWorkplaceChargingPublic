@@ -13,14 +13,20 @@ from ev_workplace_charging.settings import MODEL_TYPES
 from ev_workplace_charging.settings import N_CARS
 from ev_workplace_charging.settings import SOLVER_TYPE
 from ev_workplace_charging.utils.data_loading import load_and_process_charging_costs
-from ev_workplace_charging.utils.data_loading import load_and_process_grid_carbon_intensity
+from ev_workplace_charging.utils.data_loading import (
+    load_and_process_grid_carbon_intensity,
+)
 from ev_workplace_charging.utils.data_loading import load_and_process_power_profile
-from ev_workplace_charging.utils.data_loading import load_and_process_uncontrolled_charging_data
+from ev_workplace_charging.utils.data_loading import (
+    load_and_process_uncontrolled_charging_data,
+)
 from ev_workplace_charging.utils.data_loading import load_ev_parameters
 from ev_workplace_charging.utils.data_loading import load_parking_matrix
 from ev_workplace_charging.utils.metrics_computation import compute_max_peak
 from ev_workplace_charging.utils.metrics_computation import compute_relative_change
-from ev_workplace_charging.utils.metrics_computation import compute_total_carbon_emissions
+from ev_workplace_charging.utils.metrics_computation import (
+    compute_total_carbon_emissions,
+)
 from ev_workplace_charging.utils.metrics_computation import compute_total_charging_costs
 from ev_workplace_charging.utils.model_solving import save_model_output
 from ev_workplace_charging.utils.model_solving import setup_and_solve_ccm_model
@@ -41,7 +47,10 @@ def run_models(n_jobs: int = 1):
                 tasks.append((day, ev_portion, n_cars, model_type))
 
     # Run tasks in parallel
-    Parallel(n_jobs=n_jobs)(delayed(run_models_for_task)(task) for task in tqdm(tasks, desc="Processing tasks"))
+    Parallel(n_jobs=n_jobs)(
+        delayed(run_models_for_task)(task)
+        for task in tqdm(tasks, desc="Processing tasks")
+    )
 
 
 def run_models_for_task(task):
@@ -99,12 +108,20 @@ def run_models_for_task(task):
 
         # Compute metrics
         mp_ucc = compute_max_peak(df_output["UCC"])
-        cc_ucc = compute_total_charging_costs(df_output["UCC"], df_output["Pb"], df_output["charging_costs"])
-        ce_ucc = compute_total_carbon_emissions(df_output["UCC"], df_output["Pb"], df_output["grid_carbon_intensity"])
+        cc_ucc = compute_total_charging_costs(
+            df_output["UCC"], df_output["Pb"], df_output["charging_costs"]
+        )
+        ce_ucc = compute_total_carbon_emissions(
+            df_output["UCC"], df_output["Pb"], df_output["grid_carbon_intensity"]
+        )
 
         mp_model = compute_max_peak(df_output["Tc"])
-        cc_model = compute_total_charging_costs(df_output["Tc"], df_output["Pb"], df_output["charging_costs"])
-        ce_model = compute_total_carbon_emissions(df_output["Tc"], df_output["Pb"], df_output["grid_carbon_intensity"])
+        cc_model = compute_total_charging_costs(
+            df_output["Tc"], df_output["Pb"], df_output["charging_costs"]
+        )
+        ce_model = compute_total_carbon_emissions(
+            df_output["Tc"], df_output["Pb"], df_output["grid_carbon_intensity"]
+        )
 
         metrics = {
             "date": date,

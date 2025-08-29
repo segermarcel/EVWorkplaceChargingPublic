@@ -29,7 +29,9 @@ def main():
             date = datetime.date(2023, 2, day)
             for ev_portion, n_cars in N_CARS.items():
                 for model_type in MODEL_TYPES:
-                    metrics_path = METRICS_DATA_DIR / f"{date}_{model_type}_{ev_portion}.csv"
+                    metrics_path = (
+                        METRICS_DATA_DIR / f"{date}_{model_type}_{ev_portion}.csv"
+                    )
                     metrics_df = pd.read_csv(metrics_path)
                     metrics.append(metrics_df)
 
@@ -53,7 +55,9 @@ def main():
 
         # Lineplots for first day
         first_day_metrics = daily_metrics[daily_metrics["date"] == "2023-02-01"]
-        first_day_metrics["EV Portion"] = first_day_metrics["EV Portion"].apply(lambda x: int(x[:-1]))
+        first_day_metrics["EV Portion"] = first_day_metrics["EV Portion"].apply(
+            lambda x: int(x[:-1])
+        )
         first_day_metrics = first_day_metrics.melt(
             id_vars=["EV Portion"], value_vars=METRICS, var_name="", value_name="Value"
         )
@@ -74,11 +78,16 @@ def main():
         ax.set_xlabel("EV adoption rate [%]")
         ax.set_ylabel("VoSC [%∆]\n(01.02.2023)")
 
-        save_and_write_fig(fig, FIGURES_DIR / f"lineplot_2023-02-01_{model_type_short}.svg")
+        save_and_write_fig(
+            fig, FIGURES_DIR / f"lineplot_2023-02-01_{model_type_short}.svg"
+        )
 
         # Boxplots
         daily_metrics = daily_metrics.melt(
-            id_vars=["date", "EV Portion"], value_vars=METRICS, var_name="", value_name="Value"
+            id_vars=["date", "EV Portion"],
+            value_vars=METRICS,
+            var_name="",
+            value_name="Value",
         )
         st.write(daily_metrics)
 
@@ -104,15 +113,24 @@ def main():
             mean_max_peak=(COLUMN_NAMES["max_peak"], "mean"),
             std_max_peak=(COLUMN_NAMES["max_peak"], "std"),
             median_max_peak=(COLUMN_NAMES["max_peak"], "median"),
-            iqr_max_peak=(COLUMN_NAMES["max_peak"], lambda x: x.quantile(0.75) - x.quantile(0.25)),
+            iqr_max_peak=(
+                COLUMN_NAMES["max_peak"],
+                lambda x: x.quantile(0.75) - x.quantile(0.25),
+            ),
             mean_charging_costs=(COLUMN_NAMES["charging_costs"], "mean"),
             std_charging_costs=(COLUMN_NAMES["charging_costs"], "std"),
             median_charging_costs=(COLUMN_NAMES["charging_costs"], "median"),
-            iqr_charging_costs=(COLUMN_NAMES["charging_costs"], lambda x: x.quantile(0.75) - x.quantile(0.25)),
+            iqr_charging_costs=(
+                COLUMN_NAMES["charging_costs"],
+                lambda x: x.quantile(0.75) - x.quantile(0.25),
+            ),
             mean_carbon_emissions=(COLUMN_NAMES["carbon_emissions"], "mean"),
             std_carbon_emissions=(COLUMN_NAMES["carbon_emissions"], "std"),
             median_carbon_emissions=(COLUMN_NAMES["carbon_emissions"], "median"),
-            iqr_carbon_emissions=(COLUMN_NAMES["carbon_emissions"], lambda x: x.quantile(0.75) - x.quantile(0.25)),
+            iqr_carbon_emissions=(
+                COLUMN_NAMES["carbon_emissions"],
+                lambda x: x.quantile(0.75) - x.quantile(0.25),
+            ),
         )
         .reset_index()
     )
@@ -161,16 +179,20 @@ def main():
         ax.set_xlabel(ax.get_xlabel())
         ax.set_ylabel("VoSC [%∆]")
 
-        save_and_write_fig(fig, FIGURES_DIR / f'boxplot_{metric.replace(" ", "_")}.svg')
+        save_and_write_fig(fig, FIGURES_DIR / f"boxplot_{metric.replace(' ', '_')}.svg")
 
         fig, ax = plt.subplots(figsize=(15, 9))
         sns.lineplot(data=metrics_df, x="date", y=metric, hue="Model Type", ax=ax)
-        ax.set_xticklabels((f"{date:02d}.02.2023" for date in range(1, 29)), rotation=45)
+        ax.set_xticklabels(
+            (f"{date:02d}.02.2023" for date in range(1, 29)), rotation=45
+        )
         ax.set_yticklabels([f"{y:.0f}%" for y in ax.get_yticks()])
         ax.set_xlabel("EV adoption rate [%]")
         ax.set_ylabel("VoSC [%∆]")
 
-        save_and_write_fig(fig, FIGURES_DIR / f'lineplot_{metric.replace(" ", "_")}.svg')
+        save_and_write_fig(
+            fig, FIGURES_DIR / f"lineplot_{metric.replace(' ', '_')}.svg"
+        )
 
 
 if __name__ == "__main__":

@@ -114,7 +114,9 @@ def load_and_process_power_profile(date):
 
 def load_and_process_charging_costs(date):
     df_charging_costs = load_charging_costs()
-    df_charging_costs = process_date_df(df_charging_costs, date, interpolation="nearest")
+    df_charging_costs = process_date_df(
+        df_charging_costs, date, interpolation="nearest"
+    )
 
     df_charging_costs.loc[pd.Timestamp("1900-01-01 23:45:00")] = df_charging_costs.loc[
         pd.Timestamp("1900-01-01 23:30:00")
@@ -126,9 +128,9 @@ def load_and_process_charging_costs(date):
 def load_and_process_grid_carbon_intensity(date):
     df_grid_carbon_intensity = load_grid_carbon_intensity()
     df_grid_carbon_intensity = process_date_df(df_grid_carbon_intensity, date)
-    df_grid_carbon_intensity.loc[pd.Timestamp("1900-01-01 23:45:00")] = df_grid_carbon_intensity.loc[
-        pd.Timestamp("1900-01-01 23:30:00")
-    ]
+    df_grid_carbon_intensity.loc[pd.Timestamp("1900-01-01 23:45:00")] = (
+        df_grid_carbon_intensity.loc[pd.Timestamp("1900-01-01 23:30:00")]
+    )
 
     return df_grid_carbon_intensity
 
@@ -139,7 +141,9 @@ def load_and_process_uncontrolled_charging_data(ev_portion, df_power_profile):
     ev_portion = int(ev_portion[:-1]) / 100
     df_uncontrolled_charging = df_uncontrolled_charging.loc[ev_portion]
 
-    df_uncontrolled_charging = convert_to_datetime_index_and_resample(df_uncontrolled_charging)
+    df_uncontrolled_charging = convert_to_datetime_index_and_resample(
+        df_uncontrolled_charging
+    )
 
     df_uncontrolled_charging += df_power_profile
 
@@ -168,7 +172,9 @@ def process_date_df(df, date=None, interpolation="linear"):
     return df
 
 
-def convert_to_datetime_index_and_resample(df, interval="15min", interpolation="linear"):
+def convert_to_datetime_index_and_resample(
+    df, interval="15min", interpolation="linear"
+):
     # Convert index to datetime
     df.index = pd.to_datetime(df.index, format="%H:%M:%S")
 

@@ -5,7 +5,9 @@ from matplotlib import pyplot as plt
 
 from ev_workplace_charging.settings import FIGURES_DIR
 from ev_workplace_charging.utils.data_loading import load_and_process_charging_costs
-from ev_workplace_charging.utils.data_loading import load_and_process_grid_carbon_intensity
+from ev_workplace_charging.utils.data_loading import (
+    load_and_process_grid_carbon_intensity,
+)
 from ev_workplace_charging.utils.data_loading import load_and_process_power_profile
 from ev_workplace_charging.utils.plotting import save_and_write_fig
 

@@ -4,32 +4,41 @@ from collections import defaultdict
 import pandas as pd
 import seaborn as sns
 import streamlit as st
-from matplotlib import pyplot as plt
 
-from ev_workplace_charging.settings import CHARGER_OUTPUT_POWER
-from ev_workplace_charging.settings import FIGURES_DIR
-from ev_workplace_charging.settings import METRICS_DATA_DIR
-from ev_workplace_charging.settings import MODEL_OUTPUTS_DIR
-from ev_workplace_charging.settings import MODEL_TYPES
-from ev_workplace_charging.settings import N_CARS
-from ev_workplace_charging.settings import SOLVER_TYPE
-from ev_workplace_charging.utils.data_loading import generate_ev_parameters
-from ev_workplace_charging.utils.data_loading import generate_parking_matrix
-from ev_workplace_charging.utils.data_loading import load_and_process_uncontrolled_charging_data
-from ev_workplace_charging.utils.data_loading import load_charging_costs_from_api
-from ev_workplace_charging.utils.data_loading import load_grid_carbon_intensity_from_api
-from ev_workplace_charging.utils.data_loading import process_uploaded_power_profile
-from ev_workplace_charging.utils.metrics_computation import compute_max_peak
-from ev_workplace_charging.utils.metrics_computation import compute_relative_change
-from ev_workplace_charging.utils.metrics_computation import compute_total_carbon_emissions
-from ev_workplace_charging.utils.metrics_computation import compute_total_charging_costs
-from ev_workplace_charging.utils.model_solving import save_model_output
-from ev_workplace_charging.utils.model_solving import setup_and_solve_ccm_model
-from ev_workplace_charging.utils.model_solving import setup_and_solve_cem_model
-from ev_workplace_charging.utils.model_solving import setup_and_solve_ps_model
-from ev_workplace_charging.utils.plotting import create_metrics_fig
-from ev_workplace_charging.utils.plotting import create_output_fig
-from ev_workplace_charging.utils.plotting import save_and_write_fig
+from ev_workplace_charging.settings import (
+    CHARGER_OUTPUT_POWER,
+    FIGURES_DIR,
+    METRICS_DATA_DIR,
+    MODEL_OUTPUTS_DIR,
+    MODEL_TYPES,
+    N_CARS,
+    SOLVER_TYPE,
+)
+from ev_workplace_charging.utils.data_loading import (
+    generate_ev_parameters,
+    generate_parking_matrix,
+    load_and_process_uncontrolled_charging_data,
+    load_charging_costs_from_api,
+    load_grid_carbon_intensity_from_api,
+    process_uploaded_power_profile,
+)
+from ev_workplace_charging.utils.metrics_computation import (
+    compute_max_peak,
+    compute_relative_change,
+    compute_total_carbon_emissions,
+    compute_total_charging_costs,
+)
+from ev_workplace_charging.utils.model_solving import (
+    save_model_output,
+    setup_and_solve_ccm_model,
+    setup_and_solve_cem_model,
+    setup_and_solve_ps_model,
+)
+from ev_workplace_charging.utils.plotting import (
+    create_metrics_fig,
+    create_output_fig,
+    save_and_write_fig,
+)
 
 # Enable wide layout
 st.set_page_config(layout="wide")
@@ -50,7 +59,9 @@ def dashboard():
         with st.expander("Shift Patterns", expanded=False):
             shift_1 = setup_shift("First Shift", start_h=8, end_h=16, num_cars=700)
             shift_2 = setup_shift("Second Shift", start_h=16, end_h=0, num_cars=300)
-            shift_office = setup_shift("Office Hours", start_h=8, end_h=18, num_cars=100)
+            shift_office = setup_shift(
+                "Office Hours", start_h=8, end_h=18, num_cars=100
+            )
             shifts = (shift_1, shift_2, shift_office)
 
         # EV Battery Capacities
@@ -58,7 +69,9 @@ def dashboard():
             batteries = setup_battery_capacity(num_batteries=3)
 
         # Power Profile
-        uploaded_power_profile = st.file_uploader("Upload building power profile", type=["csv", "xlsx"])
+        uploaded_power_profile = st.file_uploader(
+            "Upload building power profile", type=["csv", "xlsx"]
+        )
 
         # Other parameters
         with st.container():
@@ -68,7 +81,10 @@ def dashboard():
         with st.container():
             col1, col2 = st.columns(2)
             charger_output_power = col1.number_input(
-                "Charger output power (kW)", value=CHARGER_OUTPUT_POWER, min_value=1, max_value=100
+                "Charger output power (kW)",
+                value=CHARGER_OUTPUT_POWER,
+                min_value=1,
+                max_value=100,
             )
             ev_portion = col2.selectbox("EV Portion", list(N_CARS.keys()))
             n_cars = N_CARS[ev_portion]
@@ -92,10 +108,14 @@ def dashboard():
             # Setup dataframes
             df_parking_matrix = generate_parking_matrix(shifts, n_cars)
             df_ev_parameters = generate_ev_parameters(batteries, n_cars)
-            df_power_profile, mean_power = process_uploaded_power_profile(uploaded_power_profile, date)
+            df_power_profile, mean_power = process_uploaded_power_profile(
+                uploaded_power_profile, date
+            )
             df_charging_costs = load_charging_costs_from_api(date)
             df_grid_carbon_intensity = load_grid_carbon_intensity_from_api(date)
-            df_ucc = load_and_process_uncontrolled_charging_data(ev_portion, df_power_profile)
+            df_ucc = load_and_process_uncontrolled_charging_data(
+                ev_portion, df_power_profile
+            )
 
             if model_type == "ps":
                 model = setup_and_solve_ps_model(
@@ -135,13 +155,17 @@ def dashboard():
 
             # Compute metrics
             mp_ucc = compute_max_peak(df_output["UCC"])
-            cc_ucc = compute_total_charging_costs(df_output["UCC"], df_output["Pb"], df_output["charging_costs"])
+            cc_ucc = compute_total_charging_costs(
+                df_output["UCC"], df_output["Pb"], df_output["charging_costs"]
+            )
             ce_ucc = compute_total_carbon_emissions(
                 df_output["UCC"], df_output["Pb"], df_output["grid_carbon_intensity"]
             )
 
             mp_model = compute_max_peak(df_output["Tc"])
-            cc_model = compute_total_charging_costs(df_output["Tc"], df_output["Pb"], df_output["charging_costs"])
+            cc_model = compute_total_charging_costs(
+                df_output["Tc"], df_output["Pb"], df_output["charging_costs"]
+            )
             ce_model = compute_total_carbon_emissions(
                 df_output["Tc"], df_output["Pb"], df_output["grid_carbon_intensity"]
             )
@@ -185,7 +209,10 @@ def dashboard():
                         grid_carbon_intensity=df_output["grid_carbon_intensity"],
                     )
 
-                figure_path = FIGURES_DIR / f"electricity_consumption_profiles_{output_file_name}.svg"
+                figure_path = (
+                    FIGURES_DIR
+                    / f"electricity_consumption_profiles_{output_file_name}.svg"
+                )
                 save_and_write_fig(fig, figure_path)
 
             # Plot metrics
@@ -201,7 +228,9 @@ def setup_shift(title, start_h, end_h, num_cars):
 
     col1, col2, col3 = st.columns(3)
 
-    start = col1.time_input("Start", value=datetime.time(start_h, 0), key=f"{title}_start")
+    start = col1.time_input(
+        "Start", value=datetime.time(start_h, 0), key=f"{title}_start"
+    )
     end = col2.time_input("End", value=datetime.time(end_h, 0), key=f"{title}_end")
     num_cars = col3.number_input("# Cars", value=num_cars, key=f"{title}_cars")
 
@@ -216,9 +245,15 @@ def setup_battery_capacity(num_batteries):
     for battery_id in range(num_batteries):
         col1, col2 = st.columns(2)
 
-        capacity = col1.number_input("kWh", value=60, min_value=1, max_value=100, key=f"{battery_id}_capacity")
+        capacity = col1.number_input(
+            "kWh", value=60, min_value=1, max_value=100, key=f"{battery_id}_capacity"
+        )
         relative_portion = col2.number_input(
-            "Relative %", value=100 // num_batteries, min_value=0, max_value=100, key=f"{battery_id}_portion"
+            "Relative %",
+            value=100 // num_batteries,
+            min_value=0,
+            max_value=100,
+            key=f"{battery_id}_portion",
         )
 
         batteries["capacity"].append(capacity)

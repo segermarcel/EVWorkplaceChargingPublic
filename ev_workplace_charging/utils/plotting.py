@@ -10,10 +10,9 @@ from ev_workplace_charging.settings import MODEL_TYPES
 
 def save_and_write_fig(fig, figure_path):
     plt.tight_layout(pad=1.0)
-    fig.savefig(figure_path.with_suffix('.png'), format='png')
-    st.image(Image.open(figure_path.with_suffix('.png')))
-    fig.savefig(figure_path, format='svg')
-
+    fig.savefig(figure_path.with_suffix(".png"), format="png")
+    st.image(Image.open(figure_path.with_suffix(".png")))
+    fig.savefig(figure_path, format="svg")
 
 
 def create_output_fig(
@@ -120,7 +119,9 @@ def create_metrics_fig(metrics_df):
     metrics_df = metrics_df.rename(columns=COLUMN_NAMES)
 
     # Melt
-    metrics_df = metrics_df.melt(value_vars=METRICS, var_name="Metric", value_name="Value")
+    metrics_df = metrics_df.melt(
+        value_vars=METRICS, var_name="Metric", value_name="Value"
+    )
 
     # Create horizontal bar chart of metrics
     fig, ax = plt.subplots(figsize=(10, 6))
