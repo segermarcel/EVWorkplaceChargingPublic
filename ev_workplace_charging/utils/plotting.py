@@ -16,7 +16,7 @@ def save_and_write_fig(fig, figure_path):
 
 
 def create_output_fig(
-    df_output,
+    output_df,
     color,
     electricity_costs=None,
     grid_carbon_intensity=None,
@@ -24,13 +24,13 @@ def create_output_fig(
     fig, ax = plt.subplots(figsize=(10, 6))
 
     # Use n as index
-    df_output.index = df_output["n"]
+    output_df.index = output_df["n"]
 
-    const_C = (min(df_output["Pb"]) + max(df_output["Pb"])) / 2
+    const_C = (min(output_df["Pb"]) + max(output_df["Pb"])) / 2
 
     g = sns.lineplot(
-        data=df_output,
-        x=df_output.index,
+        data=output_df,
+        x=output_df.index,
         y="Pb",
         label="Energy Demand Curve Industrial Site",
         color="gray",
@@ -38,8 +38,8 @@ def create_output_fig(
         ax=ax,
     )
     sns.lineplot(
-        data=df_output,
-        x=df_output.index,
+        data=output_df,
+        x=output_df.index,
         y="UCC",
         label="Uncontrolled Charging (UCC)",
         color=sns.color_palette("tab10")[3],
@@ -47,8 +47,8 @@ def create_output_fig(
         ax=ax,
     )
     sns.lineplot(
-        data=df_output,
-        x=df_output.index,
+        data=output_df,
+        x=output_df.index,
         y="Tc",
         label="Smart Charging (SC)",
         color=color,
@@ -66,7 +66,7 @@ def create_output_fig(
     if electricity_costs is not None:
         ax2 = ax.twinx()
         sns.lineplot(
-            x=df_output.index,
+            x=output_df.index,
             y=electricity_costs,
             label="Electricity Costs",
             linestyle="--",
@@ -83,7 +83,7 @@ def create_output_fig(
     if grid_carbon_intensity is not None:
         ax2 = ax.twinx()
         sns.lineplot(
-            x=df_output.index,
+            x=output_df.index,
             y=grid_carbon_intensity,
             label="Grid Carbon Intensity",
             linestyle="--",

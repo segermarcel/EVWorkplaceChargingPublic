@@ -37,3 +37,5 @@ COLUMN_NAMES = {
     "charging_costs": METRICS[1],
     "carbon_emissions": METRICS[2],
 }
+
+EV_PORTIONS = [15, 30, 50, 80, 100]
