@@ -32,7 +32,7 @@ def create_output_fig(
         data=output_df,
         x=output_df.index,
         y="Pb",
-        label="Energy Demand Curve Industrial Site",
+        label="Electricity Demand Curve Industrial Site",
         color="gray",
         linewidth=1.5,
         ax=ax,
@@ -105,7 +105,7 @@ def create_output_fig(
     ax.set_xlabel("")
     ax.set_xlim(0, 97)
     ax.tick_params(axis="y")
-    ax.set_ylabel("Energy consumption (kWh)")
+    ax.set_ylabel("Electricity consumption (kWh)")
     # ax.set_ylim(1000, 5000)
 
     return fig
@@ -157,9 +157,9 @@ def create_metrics_fig(metrics_df, relative=False):
     ax.set_xlim(ax.get_xlim()[0] * 1.15, ax.get_xlim()[1] * 1.15)
     if relative:
         ax.set_xticklabels([f"{int(x)}%" for x in ax.get_xticks()])
-        ax.set_xlabel("Relative Change (SC - UCC)")
+        ax.set_xlabel("Value of Smart Charging (VoSC) [%Δ]")
     else:
-        ax.set_xlabel("Absolute Change (SC - UCC)")
+        ax.set_xlabel("Value of Smart Charging (VoSC)")
     ax.tick_params(axis="y")
     ax.set_ylabel("")
 
