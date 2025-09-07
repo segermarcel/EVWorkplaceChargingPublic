@@ -73,18 +73,23 @@ def dashboard():
         # Other parameters
         with st.container():
             col1, col2 = st.columns(2)
+            analysis_period = col2.selectbox(
+                "Analysis Period",
+                options=["1 Day", "1 Week"],
+                index=1,
+                help="Set the analysis period for the optimization.",
+            )
+            max_date = (
+                datetime.date(2024, 2, 1)
+                if analysis_period == "1 Week"
+                else datetime.date(2024, 2, 7)
+            )
             date = col1.date_input(
                 "Date",
                 datetime.date(2024, 2, 1),
-                min_value=datetime.date(2023, 1, 1),
-                max_value=datetime.date(2024, 12, 31),
+                min_value=datetime.date(2024, 2, 1),
+                max_value=max_date,
                 help="Set the starting date for the analysis.",
-            )
-            analysis_period = col2.selectbox(
-                "Analysis Period",
-                options=["1 Day", "1 Week", "1 Month"],
-                index=1,
-                help="Set the analysis period for the optimization.",
             )
             date_range = get_date_range(date, analysis_period)
         with st.container():
