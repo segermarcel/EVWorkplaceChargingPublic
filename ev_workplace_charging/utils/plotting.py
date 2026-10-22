@@ -9,10 +9,17 @@ from ev_workplace_charging.utils.metrics_computation import (
 )
 
 
-def save_and_write_fig(fig, figure_path):
-    plt.tight_layout(pad=0.0)
-    fig.savefig(figure_path, dpi=300)
-    st.write(fig)
+def save_and_write_fig(fig, figure_path=None):
+    """Render a figure and release it, optionally exporting a publication PNG."""
+    try:
+        fig.tight_layout(pad=0.0)
+        if figure_path is not None:
+            fig.savefig(figure_path, dpi=300)
+        st.pyplot(fig, clear_figure=True, dpi=100)
+    finally:
+        # pyplot retains figures until they are explicitly closed, including
+        # when rendering fails or Streamlit interrupts a rerun.
+        plt.close(fig)
 
 
 def create_output_fig(
@@ -78,7 +85,7 @@ def create_output_fig(
         ax2.set_ylabel("Electricity Costs (p/kWh)")
         ax2.tick_params(axis="y")
 
-        sns.move_legend(ax2, "upper right")
+        ax2.legend(loc="upper right")
 
     if grid_carbon_intensity is not None:
         ax2 = ax.twinx()
@@ -95,12 +102,14 @@ def create_output_fig(
         ax2.set_ylabel("Grid Carbon Intensity (gCO2/kWh)")
         ax2.tick_params(axis="y")
 
-        sns.move_legend(ax2, "upper right")
+        ax2.legend(loc="upper right")
 
     g.set_xticks(range(0, 97, 4))
     g.set_xticklabels([f"{i:02d}:00" for i in range(0, 25, 1)], rotation=45)
 
-    sns.move_legend(ax, "lower right")
+    # Recreate the legend directly: move_legend introspects bound methods that
+    # Matplotlib 3.10 caches, retaining the old legend and its entire figure.
+    ax.legend(loc="lower right")
 
     ax.set_xlabel("")
     ax.set_xlim(0, 97)

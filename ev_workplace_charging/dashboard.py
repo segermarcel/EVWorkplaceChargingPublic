@@ -8,7 +8,6 @@ from ev_workplace_charging.company_configs import COMPANY_CONFIGS
 from ev_workplace_charging.settings import (
     CHARGER_OUTPUT_POWER,
     EV_PORTIONS,
-    FIGURES_DIR,
     METRICS_DATA_DIR,
     MODEL_OUTPUTS_DIR,
     MODEL_TYPES,
@@ -181,14 +180,12 @@ def dashboard():
                         ),
                     )
 
-                figure_path = FIGURES_DIR / f"power_profiles_{output_file_name}.png"
-                save_and_write_fig(fig, figure_path)
+                save_and_write_fig(fig)
 
             # Plot metrics
             with col2:
                 fig = create_metrics_fig(metrics_df, relative=not show_absolute_metrics)
-                figure_path = FIGURES_DIR / f"metrics_{output_file_name}.png"
-                save_and_write_fig(fig, figure_path)
+                save_and_write_fig(fig)
 
 
 def setup_shift(name, start_h, end_h, num_cars):

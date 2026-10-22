@@ -21,3 +21,10 @@ uv sync
 ```bash
 uv run streamlit run ev_workplace_charging/dashboard.py
 ```
+
+The dashboard renders charts in memory and releases them after every render,
+including interrupted renders. It no longer exports publication-resolution PNGs
+on every interaction. Explicit exports remain available by passing a path to
+`save_and_write_fig(fig, path)`.
+Legends are positioned directly with Matplotlib to avoid an upstream
+Seaborn/Matplotlib introspection cache retaining old figures.

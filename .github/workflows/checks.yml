@@ -1,0 +1,20 @@
+name: Checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+        with:
+          version: "0.13.5"
+      - run: uv sync --frozen --group dev
+      - run: uv run --frozen pre-commit run --all-files
+      - run: uv run --frozen pytest -q
