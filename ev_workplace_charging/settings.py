@@ -15,8 +15,12 @@ INPUT_DATA_DIR.mkdir(parents=True, exist_ok=True)
 METRICS_DATA_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
+# All time series are in 15-minute slots: power [kW] * SLOT_HOURS = energy [kWh].
+SLOT_HOURS = 0.25
+
 CHARGER_OUTPUT_POWER = 11
 SOLVER_TYPE = "gurobi"
+GUROBI_THREADS = 2
 
 MODEL_TYPES = {
     "ps": "Peak Minimisation & Valley Filling (PM-VF)",

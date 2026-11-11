@@ -11,6 +11,7 @@ from ev_workplace_charging.settings import (
     METRICS_DATA_DIR,
     MODEL_OUTPUTS_DIR,
     MODEL_TYPES,
+    SLOT_HOURS,
     SOLVER_TYPE,
 )
 from ev_workplace_charging.utils.data_loading import (
@@ -32,6 +33,7 @@ from ev_workplace_charging.utils.model_solving import (
     setup_and_solve_ps_model,
 )
 from ev_workplace_charging.utils.plotting import (
+    configure_plot_style,
     create_metrics_fig,
     create_output_fig,
     save_and_write_fig,
@@ -40,11 +42,7 @@ from ev_workplace_charging.utils.plotting import (
 # Enable wide layout
 st.set_page_config(layout="wide")
 
-sns.set_theme(
-    context="notebook",
-    palette="tab10",
-    font_scale=1.1,
-)
+configure_plot_style()
 
 
 def dashboard():
@@ -74,15 +72,16 @@ def dashboard():
             col1, col2 = st.columns(2)
             analysis_period = col2.selectbox(
                 "Analysis Period",
-                options=["1 Day", "1 Week"],
+                options=["1 Day", "1 Week", "1 Month"],
                 index=1,
                 help="Set the analysis period for the optimization.",
             )
-            max_date = (
-                datetime.date(2024, 2, 1)
-                if analysis_period == "1 Week"
-                else datetime.date(2024, 2, 7)
-            )
+            # Results are precomputed for February 2024
+            max_date = {
+                "1 Day": datetime.date(2024, 2, 29),
+                "1 Week": datetime.date(2024, 2, 23),
+                "1 Month": datetime.date(2024, 2, 1),
+            }[analysis_period]
             date = col1.date_input(
                 "Date",
                 datetime.date(2024, 2, 1),
@@ -188,15 +187,13 @@ def dashboard():
                 save_and_write_fig(fig)
 
 
-def setup_shift(name, start_h, end_h, num_cars):
+def setup_shift(name, start, end, num_cars):
     st.markdown(name, help="Set the start, end, and number of cars for the shift.")
 
     col1, col2, col3 = st.columns(3)
 
-    start = col1.time_input(
-        "Start", value=datetime.time(start_h, 0), key=f"{name}_start"
-    )
-    end = col2.time_input("End", value=datetime.time(end_h, 0), key=f"{name}_end")
+    start = col1.time_input("Start", value=start, key=f"{name}_start")
+    end = col2.time_input("End", value=end, key=f"{name}_end")
     num_cars = col3.number_input("# Cars", value=num_cars, key=f"{name}_cars")
 
     shift = {
@@ -270,27 +267,28 @@ def setup_data_run_models_compute_metrics(
     output_file_path = MODEL_OUTPUTS_DIR / f"{output_file_name}.csv"
     metrics_file_path = METRICS_DATA_DIR / f"{output_file_name}.csv"
 
-    if not output_file_path.exists():
+    # Both files are written per run, so an interrupted batch resumes where it stopped
+    if not (output_file_path.exists() and metrics_file_path.exists()):
         load_power_profile_fn = COMPANY_CONFIGS[company_name]["load_fn"]
         is_kw = COMPANY_CONFIGS[company_name]["is_kw"]
 
         # Setup dataframes
-        df_ev_parameters = generate_ev_parameters(shifts, ev_portion, batteries)
+        df_ev_parameters = generate_ev_parameters(shifts, ev_portion, batteries, date)
         df_parking_matrix = generate_parking_matrix(df_ev_parameters)
         df_power_profile = load_power_profile_fn(date)
         df_charging_costs = load_charging_costs_from_api(date)
         df_grid_carbon_intensity = load_grid_carbon_intensity_from_api(date)
+
+        # Model and metrics work in energy per slot [kWh]
+        if is_kw:
+            df_power_profile = df_power_profile * SLOT_HOURS
+
         df_ucc = compute_uncontrolled_charging_data(
             df_ev_parameters=df_ev_parameters,
+            df_parking_matrix=df_parking_matrix,
             df_power_profile=df_power_profile,
-            max_charger_output_power=charger_output_power,
-            is_kw=is_kw,
+            charger_output_power=charger_output_power,
         )
-
-        # Convert to kWh
-        if is_kw:
-            df_ucc = df_ucc / 4
-            df_power_profile = df_power_profile / 4
 
         if model_type == "ps":
             model = setup_and_solve_ps_model(

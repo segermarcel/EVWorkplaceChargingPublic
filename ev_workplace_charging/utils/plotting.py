@@ -9,6 +9,11 @@ from ev_workplace_charging.utils.metrics_computation import (
 )
 
 
+def configure_plot_style():
+    """Use the same publication style in Streamlit and the static site build."""
+    sns.set_theme(context="notebook", palette="tab10", font_scale=1.1)
+
+
 def save_and_write_fig(fig, figure_path=None):
     """Render a figure and release it, optionally exporting a publication PNG."""
     try:
@@ -27,6 +32,7 @@ def create_output_fig(
     color,
     electricity_costs=None,
     grid_carbon_intensity=None,
+    seed=42,
 ):
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -42,6 +48,7 @@ def create_output_fig(
         label="Electricity Demand Curve Industrial Site",
         color="gray",
         linewidth=1.5,
+        seed=seed,
         ax=ax,
     )
     sns.lineplot(
@@ -51,6 +58,7 @@ def create_output_fig(
         label="Uncontrolled Charging (UCC)",
         color=sns.color_palette("tab10")[3],
         linewidth=2.5,
+        seed=seed,
         ax=ax,
     )
     sns.lineplot(
@@ -60,6 +68,7 @@ def create_output_fig(
         label="Smart Charging (SC)",
         color=color,
         linewidth=2.5,
+        seed=seed,
         ax=ax,
     )
     ax.axhline(
@@ -79,10 +88,11 @@ def create_output_fig(
             linestyle="--",
             color="gray",
             linewidth=1.5,
+            seed=seed,
             ax=ax2,
         )
 
-        ax2.set_ylabel("Electricity Costs (p/kWh)")
+        ax2.set_ylabel("Day-ahead price (€/MWh)")
         ax2.tick_params(axis="y")
 
         ax2.legend(loc="upper right")
@@ -96,6 +106,7 @@ def create_output_fig(
             linestyle="--",
             linewidth=1.5,
             color="gray",
+            seed=seed,
             ax=ax2,
         )
 
@@ -114,7 +125,7 @@ def create_output_fig(
     ax.set_xlabel("")
     ax.set_xlim(0, 97)
     ax.tick_params(axis="y")
-    ax.set_ylabel("Electricity consumption (kWh)")
+    ax.set_ylabel("Electricity consumption (kWh per 15 min)")
     # ax.set_ylim(1000, 5000)
 
     return fig
@@ -168,7 +179,7 @@ def create_metrics_fig(metrics_df, relative=False):
         ax.set_xticklabels([f"{int(x)}%" for x in ax.get_xticks()])
         ax.set_xlabel("Value of Smart Charging (VoSC) [%Δ]")
     else:
-        ax.set_xlabel("Value of Smart Charging (VoSC)")
+        ax.set_xlabel("Value of Smart Charging (VoSC) [kW | € | kg CO2]")
     ax.tick_params(axis="y")
     ax.set_ylabel("")
 

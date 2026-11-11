@@ -30,7 +30,7 @@ def run_for_one(company, ev_portion):
     batteries = (battery_1, battery_2, battery_3)
 
     date = datetime.date(2024, 2, 1)
-    analysis_period = "1 Week"
+    analysis_period = "1 Month"
     date_range = get_date_range(date, analysis_period)
 
     charger_output_power = CHARGER_OUTPUT_POWER
@@ -74,7 +74,8 @@ if __name__ == "__main__":
     ]
 
     # Run in parallel
-    Parallel(n_jobs=1)(
+    # Each Gurobi solve uses GUROBI_THREADS threads
+    Parallel(n_jobs=5)(
         delayed(run_for_one)(company, ev_portion)
         for company, ev_portion in tqdm(tasks, desc="Running companies and ev_portions")
     )

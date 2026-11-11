@@ -6,8 +6,9 @@ readme = "README.md"
 authors = []
 requires-python = ">=3.11"
 dependencies = [
-    "entsoe-py>=0.7.4",
+    "entsoe-py>=0.7.10",
     "joblib>=1.5.2",
+    "numpy>=2.3.2",
     "openpyxl>=3.1.5",
     "pandas>=2.3.2",
     "pyomo>=6.9.4",
@@ -22,6 +23,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "highspy>=1.15.1",
     "pre-commit>=4.3.0",
     "pytest>=8.4.0",
 ]

@@ -1,6 +1,8 @@
 import pandas as pd
 import pyomo.environ as pyo
 
+from ev_workplace_charging.settings import GUROBI_THREADS, SLOT_HOURS
+
 
 def setup_and_solve_ps_model(
     df_parking_matrix,
@@ -86,7 +88,6 @@ def setup_model(
     f = {(r, c): df_parking_matrix.values[r - 1, c - 1] for r in M for c in N}
 
     # Process EV parameters
-    E_cap = {r: df_ev_parameters["E_cap"].values[r - 1] for r in M}
     E_ini = {r: df_ev_parameters["E_ini"].values[r - 1] for r in M}
     E_next = {r: df_ev_parameters["E_next"].values[r - 1] for r in M}
 
@@ -106,13 +107,12 @@ def setup_model(
     else:
         gci = None
 
-    t_interval = 15 / 60
-    P_MAX = charger_output_power * t_interval
+    # x is the energy charged per slot [kWh], so the charger limit is p_max * slot length
+    P_MAX = charger_output_power * SLOT_HOURS
     P_MIN = 0
-    TAU = 1
 
     model = create_model(
-        model_type, M, N, E_next, E_cap, E_ini, Pb, C, P_MAX, P_MIN, TAU, f, p, gci
+        model_type, M, N, E_next, E_ini, Pb, C, P_MAX, P_MIN, f, p, gci
     )
 
     return model
@@ -120,6 +120,8 @@ def setup_model(
 
 def solve_model(solver_type, model):
     solver = pyo.SolverFactory(solver_type)
+    if solver_type == "gurobi":
+        solver.options["Threads"] = GUROBI_THREADS
     res = solver.solve(model)  # tee = True   to see detailed solver output
     pyo.assert_optimal_termination(res)
 
@@ -159,13 +161,11 @@ def create_model(
     M,
     N,
     E_next,
-    E_cap,
     E_ini,
     Pb,
     C,
     P_MAX,
     P_MIN,
-    tau,
     f,
     p=None,
     gci=None,
@@ -178,13 +178,11 @@ def create_model(
 
     # Define and initialise parameters
     model.E_next = pyo.Param(M, initialize=E_next)
-    model.E_cap = pyo.Param(M, initialize=E_cap)
     model.E_ini = pyo.Param(M, initialize=E_ini)
     model.Pb = pyo.Param(N, initialize=Pb)
     model.C = pyo.Param(initialize=C)
     model.P_MAX = pyo.Param(initialize=P_MAX, mutable=True)
     model.P_MIN = pyo.Param(initialize=P_MIN, mutable=True)
-    model.tau = pyo.Param(initialize=tau)
     model.f = pyo.Param(M, N, initialize=f)
 
     if model_type == "ccm" and p is not None:
@@ -208,7 +206,7 @@ def create_model(
 
     model.x = pyo.Var(
         M, N, initialize=x_init, bounds=x_bounds
-    )  # Charging/ discharging power of EV m in interval i
+    )  # Energy charged into EV m in slot n [kWh]
     # Total load for charging/discharging the available EVs in interval i
     model.y = pyo.Var(N, initialize=0, within=pyo.Reals)
     model.E_fin = pyo.Var(M, initialize=0, within=pyo.NonNegativeReals)
@@ -230,37 +228,18 @@ def create_model(
 
     model.evchargingload = pyo.Constraint(N, rule=evchargingload_rule)
 
-    def lbcharge_rule(mdl, m, n):
-        return (
-            mdl.E_ini[m]
-            + sum(mdl.tau * mdl.x[m, k] * mdl.f[m, k] for k in range(1, n + 1))
-            >= 0
-        )
-
-    model.lbcharge = pyo.Constraint(M, N, rule=lbcharge_rule)
-
-    def ubcharge_rule(mdl, m, n):
-        return (
-            mdl.E_ini[m]
-            + sum(mdl.tau * mdl.x[m, k] * mdl.f[m, k] for k in range(1, n + 1))
-            <= mdl.E_cap[m]
-        )
-
-    model.ubcharge = pyo.Constraint(M, N, rule=ubcharge_rule)
-
     def SoCfinal_rule(mdl, m):
         return (
-            mdl.E_ini[m] + sum(mdl.tau * mdl.x[m, n] * mdl.f[m, n] for n in mdl.N)
-            == mdl.E_fin[m]
+            mdl.E_ini[m] + sum(mdl.x[m, n] * mdl.f[m, n] for n in mdl.N) == mdl.E_fin[m]
         )
 
     model.SoCfinal = pyo.Constraint(M, rule=SoCfinal_rule)
 
+    # Every strategy, and uncontrolled charging, delivers exactly the requested energy,
+    # so differences between them come from timing alone. As E_next <= E_cap and x >= 0,
+    # the battery can never exceed its capacity, so no per-slot capacity bound is needed.
     def SoCnext_rule(mdl, m):
-        return (
-            mdl.E_ini[m] + sum(mdl.tau * mdl.x[m, n] * mdl.f[m, n] for n in mdl.N)
-            >= mdl.E_next[m]
-        )
+        return mdl.E_fin[m] == mdl.E_next[m]
 
     model.SoCnext = pyo.Constraint(M, rule=SoCnext_rule)
 

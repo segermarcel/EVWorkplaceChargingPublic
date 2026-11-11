@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Explore workplace EV charging scenarios and their effects on peak demand, charging costs and carbon emissions.">
+  <title>EV Workplace Charging Dashboard</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#results">Skip to results</a>
+  <aside aria-labelledby="parameters-title">
+    <h2 id="parameters-title">Input Parameters</h2>
+    <form id="parameters">
+      <label for="company">Company</label>
+      <select id="company" name="company" disabled></select>
+      <label for="period">Analysis Period</label>
+      <select id="period" name="period" disabled>
+        <option value="week">1 Week</option>
+        <option value="day">1 Day</option>
+      </select>
+      <label for="date">Date</label>
+      <input id="date" name="date" type="date" min="2024-02-01" max="2024-02-07" value="2024-02-01" disabled>
+      <label for="ev">EV Portion (%)</label>
+      <select id="ev" name="ev" disabled></select>
+      <p class="fixed-parameter">Charger output power: <strong>11 kW</strong></p>
+      <div class="checkboxes">
+        <label><input id="electricity" name="electricity" type="checkbox" disabled> Show Electricity Costs</label>
+        <label><input id="carbon" name="carbon" type="checkbox" disabled> Show Grid Carbon Intensity</label>
+        <label><input id="absolute" name="absolute" type="checkbox" disabled> Show Absolute Metrics</label>
+      </div>
+    </form>
+    <p id="status" class="sidebar-note" role="status">Loading scenarios…</p>
+    <details class="scenario-notes">
+      <summary>About these scenarios</summary>
+      <p>Precomputed scenarios for 1–7 February 2024, using the original shift and battery assumptions.</p>
+      <p id="period-note" hidden></p>
+    </details>
+    <a href="https://github.com/segermarcel/EVWorkplaceChargingPublic">Source code &amp; model</a>
+  </aside>
+  <main id="results" aria-busy="true">
+    <h1>EV Workplace Charging Dashboard</h1>
+    <div id="models"></div>
+    <noscript>This dashboard needs JavaScript to display the precomputed scenarios.</noscript>
+  </main>
+</body>
+</html>
