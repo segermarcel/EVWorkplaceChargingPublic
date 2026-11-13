@@ -6,8 +6,8 @@ from tqdm import tqdm
 from ev_workplace_charging.company_configs import COMPANY_CONFIGS
 from ev_workplace_charging.dashboard import (
     get_date_range,
+    run_strategy_for_period,
     setup_battery,
-    setup_data_run_models_compute_metrics,
     setup_shift,
 )
 from ev_workplace_charging.settings import (
@@ -35,34 +35,17 @@ def run_for_one(company, ev_portion):
 
     charger_output_power = CHARGER_OUTPUT_POWER
 
-    # Run models
-    for model_type, model_type_long in tqdm(
-        MODEL_TYPES.items(),
-        desc="Iterating over model types",
-        total=len(MODEL_TYPES),
-        leave=False,
-    ):
-        output_dfs, metrics_dfs = [], []
-        for date in tqdm(
+    # Each strategy is optimised over the whole month as one continuous horizon
+    for model_type in tqdm(MODEL_TYPES, desc="Iterating over model types", leave=False):
+        run_strategy_for_period(
+            batteries,
+            charger_output_power,
+            company,
             date_range,
-            desc="Iterating over dates",
-            total=len(date_range),
-            leave=False,
-        ):
-            # Run models and compute metrics
-            output_df, metrics_df, output_file_name = (
-                setup_data_run_models_compute_metrics(
-                    batteries,
-                    charger_output_power,
-                    company,
-                    date,
-                    ev_portion,
-                    model_type,
-                    shifts,
-                )
-            )
-            output_dfs.append(output_df)
-            metrics_dfs.append(metrics_df)
+            ev_portion,
+            model_type,
+            shifts,
+        )
 
 
 if __name__ == "__main__":

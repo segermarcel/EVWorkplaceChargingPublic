@@ -17,6 +17,7 @@ MODEL_OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # All time series are in 15-minute slots: power [kW] * SLOT_HOURS = energy [kWh].
 SLOT_HOURS = 0.25
+SLOTS_PER_DAY = 96
 
 CHARGER_OUTPUT_POWER = 11
 SOLVER_TYPE = "gurobi"

@@ -1,5 +1,6 @@
 import datetime
 
+import numpy as np
 import pandas as pd
 import seaborn as sns
 import streamlit as st
@@ -11,27 +12,22 @@ from ev_workplace_charging.settings import (
     METRICS_DATA_DIR,
     MODEL_OUTPUTS_DIR,
     MODEL_TYPES,
-    SLOT_HOURS,
+    SLOTS_PER_DAY,
     SOLVER_TYPE,
 )
 from ev_workplace_charging.utils.data_loading import (
-    compute_uncontrolled_charging_data,
+    charging_per_slot,
+    compute_uncontrolled_charging,
     generate_ev_parameters,
-    generate_parking_matrix,
-    load_charging_costs_from_api,
-    load_grid_carbon_intensity_from_api,
+    load_period_inputs,
+    parked_slots,
 )
 from ev_workplace_charging.utils.metrics_computation import (
     compute_max_peak,
     compute_total_carbon_emissions,
     compute_total_charging_costs,
 )
-from ev_workplace_charging.utils.model_solving import (
-    save_model_output,
-    setup_and_solve_ccm_model,
-    setup_and_solve_cem_model,
-    setup_and_solve_ps_model,
-)
+from ev_workplace_charging.utils.model_solving import solve_charging
 from ev_workplace_charging.utils.plotting import (
     configure_plot_style,
     create_metrics_fig,
@@ -127,27 +123,16 @@ def dashboard():
     for model_type, model_type_long in MODEL_TYPES.items():
         st.write(f"## {model_type_long}")
 
-        output_dfs, metrics_dfs = [], []
         with st.spinner(f"Running {model_type_long} models ..."):
-            for date in date_range:
-                # Run models and compute metrics
-                output_df, metrics_df, output_file_name = (
-                    setup_data_run_models_compute_metrics(
-                        batteries,
-                        charger_output_power,
-                        company,
-                        date,
-                        ev_portion,
-                        model_type,
-                        shifts,
-                    )
-                )
-                output_dfs.append(output_df)
-                metrics_dfs.append(metrics_df)
-
-        # Combine outputs and metrics
-        output_df = pd.concat(output_dfs, ignore_index=True)
-        metrics_df = pd.concat(metrics_dfs, ignore_index=True)
+            output_df, metrics_df = run_strategy_for_period(
+                batteries,
+                charger_output_power,
+                company,
+                date_range,
+                ev_portion,
+                model_type,
+                shifts,
+            )
 
         # Plot optimization outputs and metrics
         with st.container():
@@ -251,117 +236,123 @@ def get_date_range(date, analysis_period):
     return date_range
 
 
-def setup_data_run_models_compute_metrics(
+def run_strategy_for_period(
     batteries,
     charger_output_power,
     company_name,
-    date,
+    date_range,
     ev_portion,
     model_type,
     shifts,
 ):
-    # Run optimization if output file does not already exist, else load output
-    output_file_name = (
-        f"{company_name}_{date}_{model_type}_{ev_portion}_{charger_output_power}"
+    """Outputs and metrics of one strategy for each day of `date_range`.
+
+    The days are optimised as one continuous horizon, so overnight stays charge in the
+    early hours of the following day. The fleet of the day before the range is included
+    so that the first day carries its share of overnight charging, and the day after the
+    range closes the stays of the last fleet. Results are cached per day; see
+    `compute_day_metrics` for how a day's metrics are attributed.
+    """
+    file_names = [
+        f"{company_name}_{date}_{model_type}_{ev_portion}_{charger_output_power}.csv"
+        for date in date_range
+    ]
+    output_paths = [MODEL_OUTPUTS_DIR / name for name in file_names]
+    metrics_paths = [METRICS_DATA_DIR / name for name in file_names]
+
+    if all(path.exists() for path in [*output_paths, *metrics_paths]):
+        return (
+            pd.concat(map(pd.read_csv, output_paths), ignore_index=True),
+            pd.concat(map(pd.read_csv, metrics_paths), ignore_index=True),
+        )
+
+    one_day = datetime.timedelta(days=1)
+    if any(b - a != one_day for a, b in zip(date_range, date_range[1:])):
+        raise ValueError("The days of a period must be consecutive")
+    days = [date_range[0] - one_day, *date_range, date_range[-1] + one_day]
+
+    company_config = COMPANY_CONFIGS[company_name]
+    inputs = load_period_inputs(
+        company_config["load_fn"], company_config["is_kw"], days
     )
-    output_file_path = MODEL_OUTPUTS_DIR / f"{output_file_name}.csv"
-    metrics_file_path = METRICS_DATA_DIR / f"{output_file_name}.csv"
+    fleets = {
+        d: generate_ev_parameters(shifts, ev_portion, batteries, d) for d in days[:-1]
+    }
+    fleet = pd.concat(fleets.values(), ignore_index=True)
+    fleet_dates = np.repeat(list(fleets), [len(f) for f in fleets.values()])
+    parked = parked_slots(fleet, inputs.index)
+    energy = (fleet["E_next"] - fleet["E_ini"]).to_numpy()
 
-    # Both files are written per run, so an interrupted batch resumes where it stopped
-    if not (output_file_path.exists() and metrics_file_path.exists()):
-        load_power_profile_fn = COMPANY_CONFIGS[company_name]["load_fn"]
-        is_kw = COMPANY_CONFIGS[company_name]["is_kw"]
-
-        # Setup dataframes
-        df_ev_parameters = generate_ev_parameters(shifts, ev_portion, batteries, date)
-        df_parking_matrix = generate_parking_matrix(df_ev_parameters)
-        df_power_profile = load_power_profile_fn(date)
-        df_charging_costs = load_charging_costs_from_api(date)
-        df_grid_carbon_intensity = load_grid_carbon_intensity_from_api(date)
-
-        # Model and metrics work in energy per slot [kWh]
-        if is_kw:
-            df_power_profile = df_power_profile * SLOT_HOURS
-
-        df_ucc = compute_uncontrolled_charging_data(
-            df_ev_parameters=df_ev_parameters,
-            df_parking_matrix=df_parking_matrix,
-            df_power_profile=df_power_profile,
-            charger_output_power=charger_output_power,
-        )
-
-        if model_type == "ps":
-            model = setup_and_solve_ps_model(
-                df_parking_matrix=df_parking_matrix,
-                df_ev_parameters=df_ev_parameters,
-                df_power_profile=df_power_profile,
-                charger_output_power=charger_output_power,
-                solver_type=SOLVER_TYPE,
-            )
-        elif model_type == "ccm":
-            model = setup_and_solve_ccm_model(
-                df_parking_matrix=df_parking_matrix,
-                df_ev_parameters=df_ev_parameters,
-                df_power_profile=df_power_profile,
-                df_charging_costs=df_charging_costs,
-                charger_output_power=charger_output_power,
-                solver_type=SOLVER_TYPE,
-            )
-        elif model_type == "cem":
-            model = setup_and_solve_cem_model(
-                df_parking_matrix=df_parking_matrix,
-                df_ev_parameters=df_ev_parameters,
-                df_power_profile=df_power_profile,
-                df_grid_carbon_intensity=df_grid_carbon_intensity,
-                charger_output_power=charger_output_power,
-                solver_type=SOLVER_TYPE,
-            )
-
-        df_output = save_model_output(
-            date=date,
-            model=model,
-            output_file_path=output_file_path,
-            df_uncontrolled_charging=df_ucc,
-            df_charging_costs=df_charging_costs,
-            df_grid_carbon_intensity=df_grid_carbon_intensity,
-        )
-
-        # Compute metrics
-        mp_ucc = compute_max_peak(df_output["UCC"])
-        cc_ucc = compute_total_charging_costs(
-            df_output["UCC"], df_output["Pb"], df_output["charging_costs"]
-        )
-        ce_ucc = compute_total_carbon_emissions(
-            df_output["UCC"], df_output["Pb"], df_output["grid_carbon_intensity"]
-        )
-
-        mp_model = compute_max_peak(df_output["Tc"])
-        cc_model = compute_total_charging_costs(
-            df_output["Tc"], df_output["Pb"], df_output["charging_costs"]
-        )
-        ce_model = compute_total_carbon_emissions(
-            df_output["Tc"], df_output["Pb"], df_output["grid_carbon_intensity"]
-        )
-
-        metrics = {
-            "date": date,
-            "model_type": model_type,
-            "ev_portion": ev_portion,
-            "mp_model": mp_model,
-            "cc_model": cc_model,
-            "ce_model": ce_model,
-            "mp_ucc": mp_ucc,
-            "cc_ucc": cc_ucc,
-            "ce_ucc": ce_ucc,
+    # Model and metrics work in energy per slot [kWh]
+    charging = {
+        "model": solve_charging(
+            model_type, parked, energy, inputs, charger_output_power, SOLVER_TYPE
+        ),
+        "ucc": compute_uncontrolled_charging(parked, energy, charger_output_power),
+    }
+    load = {
+        key: inputs["Pb"].to_numpy() + charging_per_slot(parked, c, len(inputs))
+        for key, c in charging.items()
+    }
+    df_output = pd.DataFrame(
+        {
+            "date": inputs.index.date,
+            "n": np.tile(np.arange(1, SLOTS_PER_DAY + 1), len(days)),
+            "y": load["model"] - inputs["Pb"].to_numpy(),
+            "Pb": inputs["Pb"].to_numpy(),
+            "Tc": load["model"],
+            "UCC": load["ucc"],
+            "charging_costs": inputs["price"].to_numpy(),
+            "grid_carbon_intensity": inputs["carbon"].to_numpy(),
         }
+    )
 
-        df_metrics = pd.DataFrame(metrics, index=[0])
-        df_metrics.to_csv(metrics_file_path, index=False)
-    else:
-        df_output = pd.read_csv(output_file_path)
-        df_metrics = pd.read_csv(metrics_file_path)
+    output_dfs, metrics_dfs = [], []
+    for date, output_path, metrics_path in zip(date_range, output_paths, metrics_paths):
+        df_day = df_output[df_output["date"] == date].reset_index(drop=True)
+        fleet_charging = {
+            key: [(s, e) for s, e, d in zip(parked, c, fleet_dates) if d == date]
+            for key, c in charging.items()
+        }
+        df_metrics = compute_day_metrics(
+            date, model_type, ev_portion, df_day, fleet_charging, inputs
+        )
+        df_day.to_csv(output_path, index=False)
+        df_metrics.to_csv(metrics_path, index=False)
+        output_dfs.append(df_day)
+        metrics_dfs.append(df_metrics)
 
-    return df_output, df_metrics, output_file_name
+    return (
+        pd.concat(output_dfs, ignore_index=True),
+        pd.concat(metrics_dfs, ignore_index=True),
+    )
+
+
+def compute_day_metrics(date, model_type, ev_portion, df_day, fleet_charging, inputs):
+    """Metrics of one day, with the strategy ("model") and uncontrolled charging ("ucc").
+
+    The peak [kW] is the site's maximum load on that calendar day, including overnight
+    charging of the previous day's fleet. Costs [EUR] and emissions [kg CO2] belong to
+    the fleet that arrives on that day, including its charging after midnight, so both
+    sides of the comparison charge the same EVs with the same energy.
+    """
+    price, carbon = inputs["price"].to_numpy(), inputs["carbon"].to_numpy()
+    metrics = {"date": date, "model_type": model_type, "ev_portion": ev_portion}
+    for suffix, column in (("model", "Tc"), ("ucc", "UCC")):
+        evs = fleet_charging[suffix]
+        metrics[f"mp_{suffix}"] = compute_max_peak(df_day[column])
+        metrics[f"cc_{suffix}"] = sum(
+            compute_total_charging_costs(e, price[s]) for s, e in evs
+        )
+        metrics[f"ce_{suffix}"] = sum(
+            compute_total_carbon_emissions(e, carbon[s]) for s, e in evs
+        )
+    columns = ["date", "model_type", "ev_portion"] + [
+        f"{metric}_{suffix}"
+        for suffix in ("model", "ucc")
+        for metric in ("mp", "cc", "ce")
+    ]
+    return pd.DataFrame(metrics, index=[0])[columns]
 
 
 if __name__ == "__main__":

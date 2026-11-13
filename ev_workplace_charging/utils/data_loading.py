@@ -1,5 +1,4 @@
 import os
-from bisect import bisect_left
 from collections import defaultdict
 from datetime import datetime, timedelta
 from functools import cache
@@ -13,6 +12,7 @@ from ev_workplace_charging.settings import (
     GRID_CARBON_INTENSITY_DIR,
     INPUT_DATA_DIR,
     SLOT_HOURS,
+    SLOTS_PER_DAY,
 )
 
 # Load profiles and day-ahead prices are in German local time
@@ -26,75 +26,66 @@ def generate_ev_parameters(
     shifts, ev_portion, batteries, date, arrival_lambda=10, departure_lambda=10
 ):
     """Simulated EV fleet for one day. Seeding by date gives every day its own fleet,
-    while all strategies of that day are compared on the same fleet."""
+    while all strategies of that day are compared on the same fleet. A shift that ends
+    before it starts (night shift, overnight fleet) ends on the next day."""
     rng = np.random.default_rng(date.toordinal())
 
     ev_parameters = defaultdict(list)
-    ev_idx = 0
-    # Iterate through each shift
     for shift in shifts:
-        # Calculate number of EVs for this shift based on portion
         shift_evs = int(shift["num_cars"] * ev_portion / 100)
+        start = datetime.combine(date, shift["start"])
+        end = datetime.combine(date, shift["end"])
+        if end <= start:
+            end += timedelta(days=1)
 
-        # Generate parameters for EVs in this shift
         for _ in range(shift_evs):
-            ev_parameters["ev_idx"].append(ev_idx)
+            arrival = start - timedelta(minutes=int(rng.poisson(arrival_lambda)))
+            departure = end + timedelta(minutes=int(rng.poisson(departure_lambda)))
 
-            # Generate arrival and departure times
-            arrival_time = (
-                datetime.combine(datetime.today(), shift["start"])
-                - timedelta(minutes=int(rng.poisson(arrival_lambda)))
-            ).time()
-            departure_time = (
-                datetime.combine(datetime.today(), shift["end"])
-                + timedelta(minutes=int(rng.poisson(departure_lambda)))
-            ).time()
-
-            ev_parameters["arrival_time"].append(arrival_time)
-            ev_parameters["departure_time"].append(departure_time)
-
-            # Assign a random battery type
             battery = rng.choice(
                 len(batteries), p=[b["relative_portion"] / 100 for b in batteries]
             )
             e_cap = batteries[battery]["capacity"]
-            e_ini = rng.uniform(0.1 * e_cap, 0.8 * e_cap)
-            e_next = rng.uniform(0.8 * e_cap, 1.0 * e_cap)
 
+            ev_parameters["arrival"].append(arrival)
+            ev_parameters["departure"].append(departure)
             ev_parameters["E_cap"].append(e_cap)
-            ev_parameters["E_ini"].append(e_ini)
-            ev_parameters["E_next"].append(e_next)
+            ev_parameters["E_ini"].append(rng.uniform(0.1 * e_cap, 0.8 * e_cap))
+            ev_parameters["E_next"].append(rng.uniform(0.8 * e_cap, 1.0 * e_cap))
 
-            ev_idx += 1
-
-    # Create the dataframe
-    df_ev_parameters = pd.DataFrame(ev_parameters)
-
-    return df_ev_parameters
+    return pd.DataFrame(ev_parameters)
 
 
-def generate_parking_matrix(df_ev_parameters):
-    # Generate timestamp columns for a 24-hour period with 15-minute intervals
-    timestamps = pd.date_range(start="00:00", end="23:59", freq="15min").time
+def parked_slots(df_ev_parameters, slots):
+    """For each EV, the indices of the `slots` (stamped by interval start) it is parked
+    in: from the first slot starting at or after arrival to the last one starting at or
+    before departure."""
+    first = slots.searchsorted(df_ev_parameters["arrival"], side="left")
+    last = slots.searchsorted(df_ev_parameters["departure"], side="right")
+    if df_ev_parameters["arrival"].min() < slots[0] or last.max() == len(slots):
+        raise ValueError("Parking windows must lie within the modelled slots")
+    return [np.arange(a, b) for a, b in zip(first, last)]
 
-    # Initialize the dataframe
-    num_evs = df_ev_parameters.shape[0]
-    df_parking_matrix = pd.DataFrame(0, index=range(num_evs), columns=timestamps)
 
-    for row in df_ev_parameters.itertuples():
-        ev_idx = row.ev_idx
-
-        arrival_time = _as_time(row.arrival_time)
-        departure_time = _as_time(row.departure_time)
-
-        # Handle overnight shifts
-        if departure_time < arrival_time:
-            df_parking_matrix.loc[ev_idx, arrival_time:] = 1
-            df_parking_matrix.loc[ev_idx, :departure_time] = 1
-        else:
-            df_parking_matrix.loc[ev_idx, arrival_time:departure_time] = 1
-
-    return df_parking_matrix
+def load_period_inputs(load_power_profile_fn, is_kw, days):
+    """Site load [kWh per slot], day-ahead price [EUR/MWh] and grid carbon intensity
+    [gCO2/kWh] for every slot of the consecutive `days`."""
+    frames = []
+    for day in days:
+        load = load_power_profile_fn(day)["Verbrauch"].to_numpy(float)
+        frames.append(
+            pd.DataFrame(
+                {
+                    "Pb": load * SLOT_HOURS if is_kw else load,
+                    "price": load_charging_costs_from_api(day)["Price"].to_numpy(),
+                    "carbon": load_grid_carbon_intensity_from_api(day).to_numpy(),
+                },
+                index=pd.date_range(
+                    pd.Timestamp(day), periods=SLOTS_PER_DAY, freq="15min"
+                ),
+            )
+        )
+    return pd.concat(frames)
 
 
 def load_power_profile_01(date: datetime.date = None):
@@ -289,41 +280,23 @@ def load_grid_carbon_intensity_from_api(date):
     return _hold_over_slots(df_grid_carbon_intensity, date)
 
 
-def compute_uncontrolled_charging_data(
-    df_ev_parameters, df_parking_matrix, df_power_profile, charger_output_power
-):
-    """Add uncontrolled charging to the site load (both in kWh per slot).
-
-    Each EV charges at full power from arrival until it holds exactly E_next, the
-    same energy the optimised strategies must deliver.
-    """
+def compute_uncontrolled_charging(parked, energy, charger_output_power):
+    """For each EV, the energy charged in each of its parked slots [kWh] when it charges
+    at full power from arrival until it holds exactly E_next, the same energy the
+    optimised strategies must deliver."""
     max_energy_per_slot = charger_output_power * SLOT_HOURS
-    timestamps = list(df_parking_matrix.columns)
-    charging = np.zeros(df_parking_matrix.shape)
-
-    for row in df_ev_parameters.itertuples():
-        parked_slots = np.flatnonzero(df_parking_matrix.loc[row.ev_idx].to_numpy())
-        arrival_slot = bisect_left(timestamps, _as_time(row.arrival_time))
-        # Overnight stays wrap around midnight: charge from arrival, then from 00:00
-        parked_slots = sorted(parked_slots, key=lambda n: (n < arrival_slot, n))
-
-        remaining = row.E_next - row.E_ini
-        for n in parked_slots:
-            if remaining <= 0:
-                break
-            charging[row.ev_idx, n] = min(max_energy_per_slot, remaining)
-            remaining -= charging[row.ev_idx, n]
-
-    df_ucc = df_power_profile.copy()
-    df_ucc["Verbrauch"] = df_ucc["Verbrauch"] + charging.sum(axis=0)
-
-    return df_ucc
+    return [
+        np.clip(e - max_energy_per_slot * np.arange(len(slots)), 0, max_energy_per_slot)
+        for slots, e in zip(parked, energy)
+    ]
 
 
-def _as_time(value):
-    if isinstance(value, str):
-        return datetime.strptime(value, "%H:%M:%S").time()
-    return value
+def charging_per_slot(parked, charging, num_slots):
+    """Total EV charging per slot [kWh] from the charging of each EV in its slots."""
+    total = np.zeros(num_slots)
+    for slots, energy in zip(parked, charging):
+        total[slots] += energy
+    return total
 
 
 def _stamp_interval_start(df):
@@ -338,6 +311,6 @@ def _hold_over_slots(series, date):
     local `date`. Each value holds until the next stamp: an hourly price or carbon
     intensity applies to all four 15-minute slots of its hour."""
     slots = pd.date_range(
-        pd.Timestamp(date, tz=LOCAL_TZ), periods=round(24 / SLOT_HOURS), freq="15min"
+        pd.Timestamp(date, tz=LOCAL_TZ), periods=SLOTS_PER_DAY, freq="15min"
     )
     return series.sort_index().reindex(slots, method="ffill").tz_localize(None)

@@ -1,4 +1,5 @@
-"""Paper Figure 4 (firms 05 and 06) and Figure S3 (all firms): daily VoSC boxplots.
+"""Paper Figure 4 (firms 05 and 06) and Figure S3 (all firms): daily VoSC boxplots,
+as 300-dpi PNG and vector PDF.
 
 Reads the per-run metrics written by run_for_companies.py. Each box holds one value
 per simulated day.
@@ -44,7 +45,10 @@ def load_vosc(metrics_dir):
 
 
 def plot_grid(vosc, companies, out_path):
-    sns.set_theme(context="notebook", palette="tab10", font_scale=1.7)
+    # Embed TrueType rather than Type 3 fonts, which journal PDF checks may reject
+    sns.set_theme(
+        context="notebook", palette="tab10", font_scale=1.7, rc={"pdf.fonttype": 42}
+    )
     df = vosc[vosc["ev_portion"].isin(FIGURE_EV_PORTIONS)].rename(columns=COLUMN_NAMES)
 
     fig, axes = plt.subplots(
@@ -72,7 +76,9 @@ def plot_grid(vosc, companies, out_path):
                 ax.set_title(f"ID {int(company)}")
 
     fig.tight_layout()
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    # Journal minimum for raster figures is 300 dpi; the PDF is vector
+    for suffix in (".png", ".pdf"):
+        fig.savefig(out_path.with_suffix(suffix), dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 

@@ -1,119 +1,76 @@
-import pandas as pd
+from collections import defaultdict
+
+import numpy as np
 import pyomo.environ as pyo
 
 from ev_workplace_charging.settings import GUROBI_THREADS, SLOT_HOURS
 
 
-def setup_and_solve_ps_model(
-    df_parking_matrix,
-    df_ev_parameters,
-    df_power_profile,
-    charger_output_power,
-    solver_type,
+def solve_charging(
+    model_type, parked, energy, inputs, charger_output_power, solver_type
 ):
-    ps_model = setup_model(
-        model_type="ps",
-        df_parking_matrix=df_parking_matrix,
-        df_ev_parameters=df_ev_parameters,
-        df_power_profile=df_power_profile,
-        df_charging_costs=None,
-        df_grid_carbon_intensity=None,
-        charger_output_power=charger_output_power,
+    """For each EV, the energy the strategy `model_type` charges in each of its parked
+    slots [kWh]."""
+    model = setup_model(model_type, parked, energy, inputs, charger_output_power)
+    solve_model(solver_type, model)
+    return [
+        np.array([pyo.value(model.x[m, n]) for n in slots])
+        for m, slots in enumerate(parked)
+    ]
+
+
+def setup_model(model_type, parked, energy, inputs, charger_output_power):
+    """Optimisation model over a continuous horizon of 15-minute slots.
+
+    parked: for each EV, the indices of the slots it is parked in
+    energy: for each EV, the energy it must be charged with [kWh] (E_next - E_ini)
+    inputs: per slot, site load Pb [kWh], price [EUR/MWh] and carbon [gCO2/kWh]
+    """
+    evs_at = defaultdict(list)
+    for m, slots in enumerate(parked):
+        for n in slots:
+            evs_at[n].append(m)
+
+    model = pyo.ConcreteModel(name=model_type)
+    model.M = pyo.Set(initialize=range(len(parked)), name="EVs")
+    model.N = pyo.Set(initialize=sorted(evs_at), name="slots with a parked EV")
+    model.P = pyo.Set(
+        initialize=[(m, n) for m, slots in enumerate(parked) for n in slots],
+        dimen=2,
+        name="parked EV-slot pairs",
     )
 
-    solve_model(solver_type, ps_model)
+    # Energy charged into EV m in slot n [kWh], up to the charger limit
+    model.x = pyo.Var(model.P, bounds=(0, charger_output_power * SLOT_HOURS))
+    # Total EV charging in slot n [kWh]
+    model.y = pyo.Var(model.N)
 
-    return ps_model
-
-
-def setup_and_solve_ccm_model(
-    df_parking_matrix,
-    df_ev_parameters,
-    df_power_profile,
-    df_charging_costs,
-    charger_output_power,
-    solver_type,
-):
-    ccm_model = setup_model(
-        model_type="ccm",
-        df_parking_matrix=df_parking_matrix,
-        df_ev_parameters=df_ev_parameters,
-        df_power_profile=df_power_profile,
-        df_charging_costs=df_charging_costs,
-        df_grid_carbon_intensity=None,
-        charger_output_power=charger_output_power,
+    model.evchargingload = pyo.Constraint(
+        model.N,
+        rule=lambda mdl, n: mdl.y[n] == pyo.quicksum(mdl.x[m, n] for m in evs_at[n]),
+    )
+    # Every strategy, and uncontrolled charging, delivers exactly the requested energy,
+    # so differences between them come from timing alone. As E_next <= E_cap and x >= 0,
+    # the battery can never exceed its capacity, so no per-slot capacity bound is needed.
+    model.energy = pyo.Constraint(
+        model.M,
+        rule=lambda mdl, m: pyo.quicksum(mdl.x[m, n] for n in parked[m]) == energy[m],
     )
 
-    solve_model(solver_type, ccm_model)
-
-    return ccm_model
-
-
-def setup_and_solve_cem_model(
-    df_parking_matrix,
-    df_ev_parameters,
-    df_power_profile,
-    df_grid_carbon_intensity,
-    charger_output_power,
-    solver_type,
-):
-    cem_model = setup_model(
-        model_type="cem",
-        df_parking_matrix=df_parking_matrix,
-        df_ev_parameters=df_ev_parameters,
-        df_power_profile=df_power_profile,
-        df_charging_costs=None,
-        df_grid_carbon_intensity=df_grid_carbon_intensity,
-        charger_output_power=charger_output_power,
-    )
-
-    solve_model(solver_type, cem_model)
-
-    return cem_model
-
-
-def setup_model(
-    model_type,
-    df_parking_matrix,
-    df_ev_parameters,
-    df_power_profile,
-    df_charging_costs,
-    df_grid_carbon_intensity,
-    charger_output_power,
-):
-    # Process parking matrix
-    num_cars, num_timesteps = df_parking_matrix.shape
-    M = range(1, num_cars + 1)
-    N = range(1, num_timesteps + 1)
-    f = {(r, c): df_parking_matrix.values[r - 1, c - 1] for r in M for c in N}
-
-    # Process EV parameters
-    E_ini = {r: df_ev_parameters["E_ini"].values[r - 1] for r in M}
-    E_next = {r: df_ev_parameters["E_next"].values[r - 1] for r in M}
-
-    # Process Power Profile
-    Pb = {n: df_power_profile.values[n - 1] for n in N}
-    C = (df_power_profile.min().values[0] + df_power_profile.max().values[0]) / 2
-
-    # Process charging costs
-    if model_type == "ccm":
-        p = {n: df_charging_costs.values[n - 1] for n in N}
+    if model_type == "ps":
+        site_load = inputs["Pb"]
+        # Valley-filling target: the midpoint of each calendar day's site load
+        target = site_load.groupby(site_load.index.date).transform(
+            lambda day: (day.min() + day.max()) / 2
+        )
+        pb, c = site_load.to_numpy(), target.to_numpy()
+        objective = pyo.quicksum((pb[n] + model.y[n] - c[n]) ** 2 for n in model.N)
+    elif model_type in ("ccm", "cem"):
+        signal = inputs["price" if model_type == "ccm" else "carbon"].to_numpy()
+        objective = pyo.quicksum(signal[n] * model.y[n] for n in model.N)
     else:
-        p = None
-
-    # Process carbon intensity
-    if model_type == "cem":
-        gci = {n: df_grid_carbon_intensity.values[n - 1] for n in N}
-    else:
-        gci = None
-
-    # x is the energy charged per slot [kWh], so the charger limit is p_max * slot length
-    P_MAX = charger_output_power * SLOT_HOURS
-    P_MIN = 0
-
-    model = create_model(
-        model_type, M, N, E_next, E_ini, Pb, C, P_MAX, P_MIN, f, p, gci
-    )
+        raise ValueError(f"Model type {model_type} not recognized")
+    model.obj = pyo.Objective(expr=objective)  # minimise
 
     return model
 
@@ -124,135 +81,3 @@ def solve_model(solver_type, model):
         solver.options["Threads"] = GUROBI_THREADS
     res = solver.solve(model)  # tee = True   to see detailed solver output
     pyo.assert_optimal_termination(res)
-
-
-def save_model_output(
-    date,
-    model,
-    output_file_path,
-    df_uncontrolled_charging,
-    df_charging_costs,
-    df_grid_carbon_intensity,
-):
-    # Create df
-    df_output = pd.DataFrame(
-        {
-            "date": [date] * len(model.N),
-            "n": model.N,
-            "y": [pyo.value(model.y[n]) for n in model.N],
-            "Pb": [float(pyo.value(model.Pb[n])) for n in model.N],
-            "Tc": [
-                float(pyo.value(model.Pb[n])) + pyo.value(model.y[n]) for n in model.N
-            ],
-            "UCC": df_uncontrolled_charging["Verbrauch"].values,
-            "charging_costs": df_charging_costs["Price"].values,
-            "grid_carbon_intensity": df_grid_carbon_intensity.values,
-        }
-    )
-
-    # Save
-    df_output.to_csv(output_file_path, index=False)
-
-    return df_output
-
-
-def create_model(
-    model_type,
-    M,
-    N,
-    E_next,
-    E_ini,
-    Pb,
-    C,
-    P_MAX,
-    P_MIN,
-    f,
-    p=None,
-    gci=None,
-):
-    model = pyo.ConcreteModel(name=model_type)
-
-    # Sets
-    model.M = pyo.Set(initialize=M, name="EVs")
-    model.N = pyo.Set(initialize=N, name="time intervals")
-
-    # Define and initialise parameters
-    model.E_next = pyo.Param(M, initialize=E_next)
-    model.E_ini = pyo.Param(M, initialize=E_ini)
-    model.Pb = pyo.Param(N, initialize=Pb)
-    model.C = pyo.Param(initialize=C)
-    model.P_MAX = pyo.Param(initialize=P_MAX, mutable=True)
-    model.P_MIN = pyo.Param(initialize=P_MIN, mutable=True)
-    model.f = pyo.Param(M, N, initialize=f)
-
-    if model_type == "ccm" and p is not None:
-        model.p = pyo.Param(N, initialize=p)
-
-    if model_type == "cem" and gci is not None:
-        model.gci = pyo.Param(N, initialize=gci)
-
-    # Define and initialise decision variables
-    def x_bounds(mdl, m, n):
-        if mdl.f[m, n] == 0:
-            return (0, 0)
-        else:
-            return (P_MIN, P_MAX)
-
-    def x_init(mdl, m, n):
-        if mdl.f[m, n] == 0:
-            return 0
-        else:
-            return P_MIN
-
-    model.x = pyo.Var(
-        M, N, initialize=x_init, bounds=x_bounds
-    )  # Energy charged into EV m in slot n [kWh]
-    # Total load for charging/discharging the available EVs in interval i
-    model.y = pyo.Var(N, initialize=0, within=pyo.Reals)
-    model.E_fin = pyo.Var(M, initialize=0, within=pyo.NonNegativeReals)
-
-    # Objective function
-    if model_type == "ps":
-        rule = obj_rule_peak_shaving
-    elif model_type == "ccm":
-        rule = obj_rule_charging_cost_minimization
-    elif model_type == "cem":
-        rule = obj_rule_carbon_emission_minimization
-    else:
-        raise ValueError(f"Model type {model_type} not recognized")
-
-    model.obj = pyo.Objective(rule=rule)  # Default rule: minimize
-
-    def evchargingload_rule(mdl, n):
-        return sum(mdl.x[m, n] * mdl.f[m, n] for m in mdl.M) == mdl.y[n]
-
-    model.evchargingload = pyo.Constraint(N, rule=evchargingload_rule)
-
-    def SoCfinal_rule(mdl, m):
-        return (
-            mdl.E_ini[m] + sum(mdl.x[m, n] * mdl.f[m, n] for n in mdl.N) == mdl.E_fin[m]
-        )
-
-    model.SoCfinal = pyo.Constraint(M, rule=SoCfinal_rule)
-
-    # Every strategy, and uncontrolled charging, delivers exactly the requested energy,
-    # so differences between them come from timing alone. As E_next <= E_cap and x >= 0,
-    # the battery can never exceed its capacity, so no per-slot capacity bound is needed.
-    def SoCnext_rule(mdl, m):
-        return mdl.E_fin[m] == mdl.E_next[m]
-
-    model.SoCnext = pyo.Constraint(M, rule=SoCnext_rule)
-
-    return model
-
-
-def obj_rule_peak_shaving(mdl):
-    return sum(pow((mdl.Pb[n] + mdl.y[n] - mdl.C), 2) for n in mdl.N)
-
-
-def obj_rule_charging_cost_minimization(mdl):
-    return sum(mdl.y[n] * mdl.p[n] for n in mdl.N)
-
-
-def obj_rule_carbon_emission_minimization(mdl):
-    return sum(mdl.y[n] * mdl.gci[n] for n in mdl.N)
